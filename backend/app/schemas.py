@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 MAX_TEXT_LENGTH = 10_000  # characters allowed in a single entry
 MAX_BATCH_SIZE = 500  # entries allowed in one batch request
@@ -73,3 +73,63 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
+    
+    
+
+class RegisterRequest(BaseModel):
+    """Data sent when creating an account."""
+
+    full_name: str = Field(..., max_length=100)
+    email: EmailStr
+    password: str = Field(..., max_length=128)
+
+    @field_validator("full_name")
+    @classmethod
+    def name_must_not_be_blank(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Name must not be empty.")
+        return value
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "full_name": "Test Student",
+                    "email": "student1@example.com",
+                    "password": "GoodPass123",
+                }
+            ]
+        }
+    }
+
+
+class LoginRequest(BaseModel):
+    """Data sent when logging in."""
+
+    email: EmailStr
+    password: str = Field(..., max_length=128)
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"email": "student1@example.com", "password": "GoodPass123"}]
+        }
+    }
+
+
+class UserResponse(BaseModel):
+    """A user as shown to the frontend. Never includes the password."""
+
+    id: int
+    full_name: str
+    email: str
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    """Returned after a successful login."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

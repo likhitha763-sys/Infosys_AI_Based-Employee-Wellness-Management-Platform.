@@ -119,3 +119,12 @@ def decode_access_token(token):
         return int(payload["sub"])
     except (jwt.PyJWTError, ValueError, TypeError) as exc:
         raise TokenError("Invalid or expired login token.") from exc
+    
+    
+
+def check_secret_key():
+    """Raise SecurityConfigError if SECRET_KEY is missing or weak.
+
+    Called when the API starts, so a bad setting is noticed immediately.
+    """
+    _get_secret_key()
