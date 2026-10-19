@@ -5,3 +5,7 @@ python-dotenv
 nltk
 spacy
 vaderSentiment
+sqlalchemy
+argon2-cffi
+pyjwt
+email-validator

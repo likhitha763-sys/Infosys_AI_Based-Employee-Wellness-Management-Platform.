@@ -14,3 +14,7 @@ frontend/.env
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local database files
+*.db
+*.sqlite3
