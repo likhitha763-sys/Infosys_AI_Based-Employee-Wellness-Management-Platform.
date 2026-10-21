@@ -8,6 +8,8 @@ import logging
 
 import streamlit as st
 
+import analysis_page
+import api_client
 import views
 
 logger = logging.getLogger("moodmentor.frontend")
@@ -16,7 +18,7 @@ PAGES = {
     "landing": views.render_landing,
     "register": views.render_register,
     "login": views.render_login,
-    "home": views.render_home,
+    "home": analysis_page.render_dashboard,
 }
 
 
@@ -43,6 +45,12 @@ def main():
 
     try:
         PAGES[page]()
+    except api_client.SessionExpiredError:
+        # The login token expired: forget it and ask the user to log in again.
+        views.log_out()
+        st.session_state["notice"] = "Your session has expired. Please log in again."
+        st.session_state["page"] = "login"
+        st.rerun()
     except Exception:
         logger.exception("Unexpected error on page %s", page)
         st.error("Something unexpected went wrong. Please reload the page and try again.")

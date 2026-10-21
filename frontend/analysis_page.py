@@ -1,36 +1,21 @@
-"""Streamlit frontend for MoodMentor (Milestone 1).
+"""The logged-in page: analyze text, upload files, and see saved history.
 
-This file only handles the user interface and reading uploaded files.
-All sentiment analysis is done by the FastAPI backend over HTTP.
-Uploaded files are only read as text; their contents are never executed.
+This file only handles the user interface. Sentiment analysis and saving are
+done by the FastAPI backend. Uploaded files are only read as text; their
+contents are never executed.
 """
 
 import io
-import logging
-import os
-from pathlib import Path
 
 import pandas as pd
-import requests
 import streamlit as st
-from dotenv import load_dotenv
 
-# Read settings from frontend/.env if the file exists.
-load_dotenv(Path(__file__).resolve().parent / ".env")
-
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-ANALYZE_URL = f"{API_BASE_URL}/api/analyze"
-BATCH_URL = f"{API_BASE_URL}/api/analyze/batch"
-HEALTH_URL = f"{API_BASE_URL}/health"
-
-logger = logging.getLogger("moodmentor.frontend")
+import api_client
+import views
 
 MAX_TEXT_LENGTH = 10_000  # characters per entry (must match the backend)
-MAX_BATCH_SIZE = 500  # entries per request (must match the backend)
 MAX_FILE_SIZE_MB = 2
-REQUEST_TIMEOUT = 30  # seconds for a single text
-BATCH_TIMEOUT = 120  # seconds for a batch
-BACKEND_START_COMMAND = "python -m uvicorn backend.app.main:app --reload --port 8000"
+HISTORY_PAGE_SIZE = 10
 
 # Column names that usually hold the text in a CSV file.
 TEXT_COLUMN_HINTS = {
@@ -38,15 +23,10 @@ TEXT_COLUMN_HINTS = {
     "review", "body", "sentence", "note", "description",
 }
 
-DISCLAIMER = (
-    "MoodMentor gives a basic, automatic reading of the tone of written text. "
-    "It is not a medical or psychological diagnosis, and it cannot reliably "
-    "tell how a person truly feels."
-)
 
-REPORT_TEXT = {
-   
-}
+def get_token():
+    """The login token stored for this browser session."""
+    return st.session_state.get("token")
 
 
 # ---------------------------------------------------------------------------
@@ -61,81 +41,6 @@ def validate_text(text):
     if len(text) > MAX_TEXT_LENGTH:
         return f"Text is too long. Please keep it under {MAX_TEXT_LENGTH:,} characters."
     return None
-
-
-# ---------------------------------------------------------------------------
-# Talking to the backend
-# ---------------------------------------------------------------------------
-
-
-def backend_is_online():
-    """Quick check of the backend health endpoint."""
-    try:
-        return requests.get(HEALTH_URL, timeout=3).status_code == 200
-    except requests.exceptions.RequestException:
-        return False
-
-
-def get_error_message(response):
-    """Turn an error response from the backend into a friendly message."""
-    detail = None
-    try:
-        body = response.json()
-        if isinstance(body, dict) and isinstance(body.get("detail"), str):
-            detail = body["detail"]
-    except ValueError:
-        pass
-
-    if response.status_code == 400:
-        return detail or "The backend could not accept this text."
-    if response.status_code == 422:
-        return "The backend rejected this input. Please check the text and try again."
-    if response.status_code == 503:
-        return f"The analysis service is not fully set up yet. {detail or ''}".strip()
-    return "The backend had a problem analyzing this text. Please try again."
-
-
-def post_to_backend(url, payload, timeout=REQUEST_TIMEOUT):
-    """POST JSON to the backend. Returns (data, error_message); one is None."""
-    try:
-        response = requests.post(url, json=payload, timeout=timeout)
-    except requests.exceptions.ConnectionError:
-        return None, (
-            f"Cannot reach the analysis backend at {API_BASE_URL}. "
-            f"Please start it and try again. Command: {BACKEND_START_COMMAND}"
-        )
-    except requests.exceptions.Timeout:
-        return None, "The backend took too long to respond. Please try again."
-    except requests.exceptions.RequestException:
-        return None, "Something went wrong while contacting the backend."
-
-    if response.status_code == 200:
-        try:
-            return response.json(), None
-        except ValueError:
-            return None, "The backend returned a response that could not be read."
-
-    return None, get_error_message(response)
-
-
-def call_analyze_api(text):
-    """Analyze one text. Returns (result, error_message)."""
-    return post_to_backend(ANALYZE_URL, {"text": text})
-
-
-def call_batch_api(texts):
-    """Analyze many texts, in chunks the backend accepts.
-
-    Returns (list_of_results, error_message).
-    """
-    all_results = []
-    for start in range(0, len(texts), MAX_BATCH_SIZE):
-        chunk = texts[start : start + MAX_BATCH_SIZE]
-        data, error = post_to_backend(BATCH_URL, {"texts": chunk}, BATCH_TIMEOUT)
-        if error:
-            return None, error
-        all_results.extend(data["results"])
-    return all_results, None
 
 
 # ---------------------------------------------------------------------------
@@ -238,25 +143,8 @@ def prepare_entries(raw_entries):
 
 
 # ---------------------------------------------------------------------------
-# Display
+# Report wording and display
 # ---------------------------------------------------------------------------
-
-
-def render_sidebar():
-    """Show background information and the backend status."""
-    with st.sidebar:
-        st.header("About")
-        st.write(
-            "MoodMentor reads written text, such as journal entries or messages, "
-            "and reports whether its overall tone is positive, negative, or neutral."
-        )
-        st.caption(DISCLAIMER)
-        st.divider()
-        st.caption(f"Backend address: {API_BASE_URL}")
-        if backend_is_online():
-            st.success("Backend: connected")
-        else:
-            st.error("Backend: not reachable")
 
 
 def build_report(result):
@@ -319,7 +207,6 @@ def render_result(result, key_prefix="single"):
 
     for line in build_report(result):
         st.write(line)
-        
     st.caption(
         "The compound score summarizes the whole text from -1 (most negative) to "
         "+1 (most positive). Scores of +0.05 or higher count as positive and "
@@ -342,7 +229,7 @@ def render_result(result, key_prefix="single"):
         disabled=True,
         key=f"{key_prefix}_processed",
     )
-    st.caption(DISCLAIMER)
+    st.caption(views.DISCLAIMER)
 
 
 def render_results_table(results, key_prefix):
@@ -390,7 +277,7 @@ def render_results_table(results, key_prefix):
 
 
 # ---------------------------------------------------------------------------
-# Tabs
+# Text and file tabs
 # ---------------------------------------------------------------------------
 
 
@@ -406,7 +293,8 @@ def show_file_results(state_key, signature):
             f"{stored['too_long']} entries were skipped because they are longer "
             f"than {MAX_TEXT_LENGTH:,} characters."
         )
-    render_results_table(stored["results"], state_key)
+    st.success(f"{len(stored['results'])} results were saved to your history.")
+    render_results_table(stored["results"], f"{state_key}_{abs(hash(signature))}")
 
 
 def run_file_analysis(state_key, signature, raw_entries):
@@ -417,7 +305,7 @@ def run_file_analysis(state_key, signature, raw_entries):
         return
 
     with st.spinner(f"Analyzing {len(entries)} entries..."):
-        results, error = call_batch_api(entries)
+        results, error = api_client.analyze_batch(get_token(), entries)
 
     if error:
         st.error(error)
@@ -431,7 +319,7 @@ def run_file_analysis(state_key, signature, raw_entries):
     }
 
 
-def render_text_input_section():
+def render_text_section():
     """Tab 1: text box, Analyze button, and the resulting report."""
     st.subheader("Enter your text")
     text = st.text_area(
@@ -449,15 +337,17 @@ def render_text_input_section():
             return
 
         with st.spinner("Analyzing..."):
-            result, api_error = call_analyze_api(text)
+            result, api_error = api_client.analyze_text(get_token(), text)
 
         if api_error:
             st.error(api_error)
-        else:
-            render_result(result)
+            return
+
+        st.success("Analysis complete. The result was saved to your history.")
+        render_result(result, key_prefix=f"single_{abs(hash(result['original_text']))}")
 
 
-def render_txt_upload_section():
+def render_txt_section():
     """Tab 2: upload and analyze a TXT file."""
     st.subheader("Upload a TXT file")
     uploaded = st.file_uploader("Choose a .txt file", type=["txt"], key="txt_file")
@@ -485,7 +375,7 @@ def render_txt_upload_section():
     show_file_results("txt_results", signature)
 
 
-def render_csv_upload_section():
+def render_csv_section():
     """Tab 3: upload a CSV file, choose the text column, and analyze it."""
     st.subheader("Upload a CSV file")
     uploaded = st.file_uploader("Choose a .csv file", type=["csv"], key="csv_file")
@@ -528,36 +418,106 @@ def render_csv_upload_section():
     show_file_results("csv_results", signature)
 
 
-def run_section(render_function):
-    """Run one part of the page. Show a friendly message instead of a traceback."""
+# ---------------------------------------------------------------------------
+# History tab
+# ---------------------------------------------------------------------------
+
+
+def shorten(text, length=80):
+    """Collapse whitespace and cut long text for table display."""
+    text = " ".join(text.split())
+    return text if len(text) <= length else text[: length - 3] + "..."
+
+
+def format_time(value):
+    """Show a stored UTC time in a readable form."""
     try:
-        render_function()
-    except Exception:
-        logger.exception("Unexpected error in %s", render_function.__name__)
-        st.error(
-            "Something unexpected went wrong. Please try again, or reload the page."
-        )
+        return pd.to_datetime(value, utc=True).strftime("%Y-%m-%d %H:%M UTC")
+    except (ValueError, TypeError):
+        return str(value)
 
 
-def main():
-    st.set_page_config(page_title="MoodMentor", page_icon="💬", layout="wide")
+def change_history_page(step):
+    """Button callback: move to the previous or next history page."""
+    st.session_state["history_page"] = max(0, st.session_state.get("history_page", 0) + step)
 
-    st.title("MoodMentor")
-    st.caption("Personalized Well-Being Through AI-Powered Emotional Analysis")
-    st.write(
-        "Analyze the emotional tone of your writing. Type some text or upload "
-        "a file to get a first sentiment report."
+
+def render_history_section():
+    """Tab 4: the user's saved analyses, newest first."""
+    st.subheader("Your saved analyses")
+
+    page = st.session_state.get("history_page", 0)
+    data, error = api_client.get_history(
+        get_token(), HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE
+    )
+    if error:
+        st.error(error)
+        return
+
+    total, items = data["total"], data["items"]
+    if total == 0:
+        st.info("You have no saved analyses yet. Analyze some text and it will appear here.")
+        return
+    if not items:  # the page number is past the end
+        st.session_state["history_page"] = 0
+        st.rerun()
+
+    table = pd.DataFrame(
+        {
+            "Date": [format_time(item["created_at"]) for item in items],
+            "Text": [shorten(item["original_text"]) for item in items],
+            "Sentiment": [item["sentiment"] for item in items],
+            "Compound": [item["compound_score"] for item in items],
+        }
+    )
+    st.dataframe(table, hide_index=True)
+
+    last_page = (total - 1) // HISTORY_PAGE_SIZE
+    previous_column, label_column, next_column = st.columns([1, 2, 1])
+    previous_column.button(
+        "Previous", key="history_previous", on_click=change_history_page,
+        args=(-1,), disabled=page == 0,
+    )
+    label_column.caption(f"Page {page + 1} of {last_page + 1} ({total} saved analyses)")
+    next_column.button(
+        "Next", key="history_next", on_click=change_history_page,
+        args=(1,), disabled=page >= last_page,
     )
 
-    run_section(render_sidebar)
+    chosen = st.selectbox(
+        "Show the full report for:",
+        list(range(len(items))),
+        format_func=lambda index: (
+            f"{format_time(items[index]['created_at'])}  |  "
+            f"{shorten(items[index]['original_text'], 50)}"
+        ),
+        key=f"history_select_{page}",
+    )
+    render_result(items[chosen], key_prefix=f"history_{items[chosen]['id']}")
 
-    text_tab, txt_tab, csv_tab = st.tabs(["Type text", "Upload TXT", "Upload CSV"])
+
+# ---------------------------------------------------------------------------
+# The page
+# ---------------------------------------------------------------------------
+
+
+def render_dashboard():
+    """The page shown to logged-in users."""
+    user = st.session_state.get("user", {})
+    st.title(f"Welcome, {user.get('full_name', '')}")
+    st.write(
+        "Analyze some text below. Every result is saved to your account, "
+        "and you can look back at it in the **My history** tab."
+    )
+
+    text_tab, txt_tab, csv_tab, history_tab = st.tabs(
+        ["Type text", "Upload TXT", "Upload CSV", "My history"]
+    )
     with text_tab:
-        run_section(render_text_input_section)
+        render_text_section()
     with txt_tab:
-        run_section(render_txt_upload_section)
+        render_txt_section()
     with csv_tab:
-        run_section(render_csv_upload_section)
-
-
-main()
+        render_csv_section()
+    with history_tab:
+        render_history_section()

@@ -200,6 +200,10 @@ def render_login():
         if flash:
             st.success(flash)
 
+        notice = st.session_state.pop("notice", None)
+        if notice:
+            st.warning(notice)        
+
         with st.form("login_form"):
             email = st.text_input("Email address", max_chars=validation.MAX_EMAIL_LENGTH)
             password = st.text_input(
@@ -236,14 +240,3 @@ def render_login():
         st.rerun()
 
 
-# ---------------------------------------------------------------------------
-# Dashboard (temporary; replaced by the analysis page in the next step)
-# ---------------------------------------------------------------------------
-
-
-def render_home():
-    user = st.session_state.get("user", {})
-    st.title(f"Welcome, {user.get('full_name', '')}")
-    st.success("You are logged in.")
-    st.info("The text-analysis page is added in the next step.")
-    st.text(f"Signed in as {user.get('email', '')}")
