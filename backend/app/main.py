@@ -10,13 +10,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from .analyses import count_analyses, list_analyses, save_analyses
 from .database import create_tables, get_db
 from .models import User
 from .schemas import (
@@ -25,6 +26,7 @@ from .schemas import (
     BatchAnalyzeRequest,
     BatchAnalyzeResponse,
     HealthResponse,
+    HistoryResponse,
     LoginRequest,
     RegisterRequest,
     TokenResponse,
@@ -232,20 +234,68 @@ def read_current_user(current_user: User = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
-# Sentiment analysis (still public in this step)
+# Sentiment analysis (login required; every result is saved)
 # ---------------------------------------------------------------------------
 
 
+def save_or_fail(db, user, results):
+    """Save results for the user. Turns database errors into a safe 500."""
+    try:
+        save_analyses(db, user.id, results)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not save analysis results")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "The text was analyzed, but the result could not be saved. "
+                "Please try again."
+            ),
+        )
+
+
 @app.post("/api/analyze", response_model=AnalyzeResponse, tags=["Sentiment"])
-def analyze(request: AnalyzeRequest):
-    """Analyze the sentiment of one piece of text."""
-    return run_analysis(analyze_text, request.text)
+def analyze(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyze one text and save the result to the logged-in user's history."""
+    result = run_analysis(analyze_text, request.text)
+    save_or_fail(db, current_user, [result])
+    return result
 
 
 @app.post(
     "/api/analyze/batch", response_model=BatchAnalyzeResponse, tags=["Sentiment"]
 )
-def analyze_multiple(request: BatchAnalyzeRequest):
-    """Analyze several texts in one request (used for TXT and CSV uploads)."""
+def analyze_multiple(
+    request: BatchAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyze several texts and save every result to the user's history."""
     results = run_analysis(analyze_batch, request.texts)
+    save_or_fail(db, current_user, results)
     return {"count": len(results), "results": results}
+
+
+@app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
+def history(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the logged-in user's saved analyses, newest first."""
+    try:
+        return {
+            "total": count_analyses(db, current_user.id),
+            "items": list_analyses(db, current_user.id, limit, offset),
+        }
+    except Exception:
+        logger.exception("Could not read analysis history")
+        raise HTTPException(
+            status_code=500,
+            detail="Your history could not be loaded. Please try again.",
+        )

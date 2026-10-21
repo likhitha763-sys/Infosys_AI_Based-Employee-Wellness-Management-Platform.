@@ -1,5 +1,6 @@
 """Request and response models (schemas) for the MoodMentor API."""
 
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -133,3 +134,26 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    
+    
+
+class AnalysisRecord(AnalyzeResponse):
+    """One saved analysis in a user's history."""
+
+    id: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_utc(cls, value):
+        """SQLite returns times without a time zone; they are stored in UTC."""
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+class HistoryResponse(BaseModel):
+    """A page of a user's saved analyses, newest first."""
+
+    total: int
+    items: list[AnalysisRecord]
