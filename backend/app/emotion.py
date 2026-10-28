@@ -8,6 +8,7 @@ VADER sentiment score:
 This module contains no web code. FastAPI (main.py) calls it.
 """
 
+import logging
 import os
 import threading
 from pathlib import Path
@@ -18,6 +19,8 @@ from .sentiment import EmptyTextError
 
 # Read settings from backend/.env if the file exists.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
+logger = logging.getLogger("moodmentor")
 
 DEFAULT_MODEL_NAME = "SamLowe/roberta-base-go_emotions"
 MAX_TOKENS = 512  # longer texts are cut off (truncated) at this length
@@ -277,3 +280,54 @@ def classify_emotions(texts):
     if not texts:
         return []
     return [pick_primary_emotion(scores) for scores in _predict_probabilities(list(texts))]
+
+
+
+def attach_emotions(results):
+    """Add emotion fields to a list of sentiment results (each a dictionary).
+
+    Emotion is an extra. If it is switched off or cannot run, the results come
+    back with empty emotion fields and a short note, and the sentiment analysis
+    is not affected. This function never raises an error.
+    """
+    note = None
+    emotions = None
+    try:
+        emotions = classify_emotions([result["original_text"] for result in results])
+    except EmotionDisabledError:
+        note = "Emotion detection is turned off."
+    except EmotionModelError as exc:
+        logger.error("Emotion model unavailable: %s", exc)
+        note = "Emotion detection is unavailable right now."
+    except Exception:
+        logger.exception("Unexpected error during emotion detection")
+        note = "Emotion detection failed for this request."
+
+    empty = {
+        "predicted_emotion": None,
+        "emotion_name": None,
+        "emotion_emoji": None,
+        "emotion_confidence": None,
+        "top_emotions": None,
+    }
+    enriched = []
+    for index, result in enumerate(results):
+        if emotions is None:
+            extra = {**empty, "emotion_note": note}
+        else:
+            extra = {**emotions[index], "emotion_note": None}
+        enriched.append({**result, **extra})
+    return enriched
+
+
+def warm_up():
+    """Load the model ahead of the first request. Never raises an error."""
+    if not is_enabled():
+        return
+    try:
+        _get_model()
+        logger.info("Emotion model is ready.")
+    except EmotionModelError as exc:
+        logger.error("Emotion model could not be loaded: %s", exc)
+    except Exception:
+        logger.exception("Unexpected error while loading the emotion model")

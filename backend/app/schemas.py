@@ -3,7 +3,9 @@
 from datetime import datetime, timezone
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+from .emotion import describe_emotion
 
 MAX_TEXT_LENGTH = 10_000  # characters allowed in a single entry
 MAX_BATCH_SIZE = 500  # entries allowed in one batch request
@@ -49,8 +51,19 @@ class BatchAnalyzeRequest(BaseModel):
     }
 
 
+class EmotionScore(BaseModel):
+    """One emotion and the model's score for it."""
+
+    emotion: str
+    score: float = Field(..., ge=0, le=1)
+
+
 class AnalyzeResponse(BaseModel):
-    """The result for one analyzed text."""
+    """The result for one analyzed text.
+
+    Sentiment (VADER) and emotion (separate model) are different results.
+    The emotion fields are empty when emotion detection is off or unavailable.
+    """
 
     original_text: str
     processed_text: str
@@ -59,6 +72,13 @@ class AnalyzeResponse(BaseModel):
     neutral_score: float = Field(..., ge=0, le=1)
     compound_score: float = Field(..., ge=-1, le=1)
     sentiment: Literal["Positive", "Negative", "Neutral"]
+
+    predicted_emotion: str | None = None
+    emotion_name: str | None = None
+    emotion_emoji: str | None = None
+    emotion_confidence: float | None = Field(None, ge=0, le=1)
+    top_emotions: list[EmotionScore] | None = None
+    emotion_note: str | None = None
 
 
 class BatchAnalyzeResponse(BaseModel):
@@ -150,6 +170,13 @@ class AnalysisRecord(AnalyzeResponse):
     def assume_utc(cls, value):
         """SQLite returns times without a time zone; they are stored in UTC."""
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    @model_validator(mode="after")
+    def add_emotion_display(self):
+        """Saved rows only hold the emotion label; add its name and emoji."""
+        if self.predicted_emotion and not self.emotion_name:
+            self.emotion_name, self.emotion_emoji = describe_emotion(self.predicted_emotion)
+        return self    
 
 
 class HistoryResponse(BaseModel):

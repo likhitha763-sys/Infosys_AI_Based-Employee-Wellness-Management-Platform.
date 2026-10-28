@@ -6,6 +6,7 @@ sentiment.py and account logic in users.py.
 
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -40,6 +41,7 @@ from .security import (
     create_access_token,
     decode_access_token,
 )
+from .emotion import attach_emotions, warm_up
 from .sentiment import EmptyTextError, NLPResourceError, analyze_batch, analyze_text
 from .users import (
     EmailAlreadyRegisteredError,
@@ -65,6 +67,8 @@ async def lifespan(app):
         check_secret_key()
     except SecurityConfigError as exc:
         logger.error("Login is disabled until this is fixed: %s", exc)
+     # Load the emotion model in the background so the first request is fast.
+    threading.Thread(target=warm_up, daemon=True).start()
     yield
 
 
@@ -262,6 +266,7 @@ def analyze(
 ):
     """Analyze one text and save the result to the logged-in user's history."""
     result = run_analysis(analyze_text, request.text)
+    [result] = attach_emotions([result])
     save_or_fail(db, current_user, [result])
     return result
 
@@ -276,6 +281,7 @@ def analyze_multiple(
 ):
     """Analyze several texts and save every result to the user's history."""
     results = run_analysis(analyze_batch, request.texts)
+    results = attach_emotions(results)
     save_or_fail(db, current_user, results)
     return {"count": len(results), "results": results}
 

@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from .models import Analysis
 
-# The fields of an analyze_text() result that are stored in the database.
-RESULT_FIELDS = (
+# Fields every result has.
+REQUIRED_FIELDS = (
     "original_text",
     "processed_text",
     "positive_score",
@@ -19,13 +19,17 @@ RESULT_FIELDS = (
     "sentiment",
 )
 
+# Fields that may be missing (emotion detection is optional).
+OPTIONAL_FIELDS = ("predicted_emotion", "emotion_confidence")
+
 
 def save_analyses(db: Session, user_id, results):
     """Save several analysis results for a user in one transaction."""
-    records = [
-        Analysis(user_id=user_id, **{field: result[field] for field in RESULT_FIELDS})
-        for result in results
-    ]
+    records = []
+    for result in results:
+        values = {field: result[field] for field in REQUIRED_FIELDS}
+        values.update({field: result.get(field) for field in OPTIONAL_FIELDS})
+        records.append(Analysis(user_id=user_id, **values))
     db.add_all(records)
     db.commit()
     return records

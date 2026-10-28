@@ -52,7 +52,7 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 # A temporary secret key, so the test does not depend on your real one.
-key_patch = patch.dict(os.environ, {"SECRET_KEY": "t" * 64})
+key_patch = patch.dict(os.environ, {"SECRET_KEY": "t" * 64, "EMOTION_ENABLED": "false"})
 key_patch.start()
 
 
