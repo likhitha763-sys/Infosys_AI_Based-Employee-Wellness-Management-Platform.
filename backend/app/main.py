@@ -19,6 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from .analyses import count_analyses, list_analyses, save_analyses
+from .dashboard import build_dashboard
 from .database import create_tables, get_db
 from .models import User
 from .schemas import (
@@ -26,6 +27,7 @@ from .schemas import (
     AnalyzeResponse,
     BatchAnalyzeRequest,
     BatchAnalyzeResponse,
+    DashboardResponse,
     HealthResponse,
     HistoryResponse,
     LoginRequest,
@@ -304,4 +306,27 @@ def history(
         raise HTTPException(
             status_code=500,
             detail="Your history could not be loaded. Please try again.",
+        )
+        
+        
+
+# ---------------------------------------------------------------------------
+# Dashboard (login required)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/dashboard", response_model=DashboardResponse, tags=["Dashboard"])
+def dashboard(
+    rhythm_limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Summary numbers and chart data for the logged-in user's saved analyses."""
+    try:
+        return build_dashboard(db, current_user.id, rhythm_limit)
+    except Exception:
+        logger.exception("Could not build the dashboard")
+        raise HTTPException(
+            status_code=500,
+            detail="Your dashboard could not be loaded. Please try again.",
         )

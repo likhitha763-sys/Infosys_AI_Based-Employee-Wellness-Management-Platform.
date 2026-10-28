@@ -184,3 +184,60 @@ class HistoryResponse(BaseModel):
 
     total: int
     items: list[AnalysisRecord]
+    
+
+
+class SentimentCount(BaseModel):
+    """How many entries have one sentiment label."""
+
+    sentiment: Literal["Positive", "Neutral", "Negative"]
+    count: int
+    percent: float
+
+
+class EmotionCount(BaseModel):
+    """How many entries have one detected emotion."""
+
+    emotion: str
+    name: str
+    emoji: str
+    count: int
+    percent: float
+    is_emotion: bool  # False for "neutral" and "no clear emotion"
+
+
+class RhythmPoint(BaseModel):
+    """One entry on the emotional-rhythm line chart."""
+
+    number: int
+    created_at: datetime
+    compound_score: float = Field(..., ge=-1, le=1)
+    sentiment: Literal["Positive", "Neutral", "Negative"]
+    text_preview: str
+    emotion_name: str | None = None
+    emotion_emoji: str | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_utc(cls, value):
+        """SQLite returns times without a time zone; they are stored in UTC."""
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+class DashboardSummary(BaseModel):
+    """The summary cards."""
+
+    total_entries: int
+    average_compound: float | None
+    most_common_sentiments: list[str]  # more than one means a tie
+    entries_with_emotion: int
+    most_common_emotions: list[EmotionCount]  # more than one means a tie
+
+
+class DashboardResponse(BaseModel):
+    """Everything the dashboard needs, calculated from saved analyses."""
+
+    summary: DashboardSummary
+    sentiment_counts: list[SentimentCount]
+    emotion_counts: list[EmotionCount]
+    rhythm: list[RhythmPoint]
