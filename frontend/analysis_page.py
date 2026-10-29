@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 
 import api_client
+import dashboard_page
 import views
 
 MAX_TEXT_LENGTH = 10_000  # characters per entry (must match the backend)
@@ -510,9 +511,12 @@ def render_dashboard():
         "and you can look back at it in the **My history** tab."
     )
 
-    text_tab, txt_tab, csv_tab, history_tab = st.tabs(
-        ["Type text", "Upload TXT", "Upload CSV", "My history"]
+    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab = st.tabs(
+        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history"]
     )
+    # The tabs appear in the order above, but the code below runs the analysis
+    # tabs first. That way the history and dashboard already include a result
+    # that was analyzed during this same refresh.
     with text_tab:
         render_text_section()
     with txt_tab:
@@ -521,3 +525,5 @@ def render_dashboard():
         render_csv_section()
     with history_tab:
         render_history_section()
+    with dashboard_tab:
+        dashboard_page.render_mood_dashboard()

@@ -16,6 +16,8 @@ LOGIN_URL = f"{API_BASE_URL}/api/auth/login"
 ANALYZE_URL = f"{API_BASE_URL}/api/analyze"
 BATCH_URL = f"{API_BASE_URL}/api/analyze/batch"
 HISTORY_URL = f"{API_BASE_URL}/api/history"
+DASHBOARD_URL = f"{API_BASE_URL}/api/dashboard"
+
 
 REQUEST_TIMEOUT = 30  # seconds
 BATCH_TIMEOUT = 120  # seconds
@@ -131,4 +133,11 @@ def get_history(token, limit, offset):
     """Fetch one page of the user's saved analyses. Returns ({total, items}, error)."""
     return send_request(
         "GET", HISTORY_URL, token=token, params={"limit": limit, "offset": offset}
+    )
+    
+    
+def get_dashboard(token, rhythm_limit=50):
+    """Fetch the dashboard numbers. Returns (data, error_message)."""
+    return send_request(
+        "GET", DASHBOARD_URL, token=token, params={"rhythm_limit": rhythm_limit}
     )
