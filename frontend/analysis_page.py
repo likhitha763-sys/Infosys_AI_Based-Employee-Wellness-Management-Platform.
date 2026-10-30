@@ -195,6 +195,86 @@ def build_report(result):
     return lines
 
 
+# ---------------------------------------------------------------------------
+# Emotion display helpers (text and tables only; no screen code)
+# ---------------------------------------------------------------------------
+
+
+def emotion_text(result):
+    """The emoji and name of the detected emotion, or 'Not analyzed'."""
+    name = result.get("emotion_name")
+    if not name:
+        return "Not analyzed"
+    return f"{result.get('emotion_emoji') or ''} {name}".strip()
+
+
+def confidence_text(result):
+    """The model's confidence as a whole-number percentage, or a dash."""
+    confidence = result.get("emotion_confidence")
+    return "—" if confidence is None else f"{confidence:.0%}"
+
+
+def emotion_explanation(result):
+    """A plain-language sentence about the emotion result."""
+    emotion = result.get("predicted_emotion")
+    if emotion is None:
+        return result.get("emotion_note") or (
+            "No emotion was saved for this entry. Entries analyzed before "
+            "emotion detection was added do not have one."
+        )
+    if emotion == "no_clear_emotion":
+        return "The emotion model was not confident about any single emotion for this text."
+    if emotion == "neutral":
+        return (
+            "The emotion model found no strong emotion in this text. "
+            "This is a separate result from the sentiment above."
+        )
+    return (
+        f"The emotion model's best guess for this text is {result.get('emotion_name')}. "
+        "This is separate from the sentiment above, and the model can be wrong, "
+        "especially on short or unusual text."
+    )
+
+
+def top_emotions_text(result):
+    """The model's top scores as one line, or None when they are not available."""
+    top = result.get("top_emotions")
+    if not top:
+        return None
+    scores = ", ".join(f"{item['emotion']} {item['score']:.2f}" for item in top)
+    return f"Top model scores: {scores}"
+
+
+def results_table(results):
+    """The table for the results of an uploaded file (several entries)."""
+    return pd.DataFrame(
+        {
+            "#": range(1, len(results) + 1),
+            "Text": [result["original_text"] for result in results],
+            "Emotion": [emotion_text(result) for result in results],
+            "Confidence": [confidence_text(result) for result in results],
+            "Sentiment": [result["sentiment"] for result in results],
+            "Positive": [result["positive_score"] for result in results],
+            "Negative": [result["negative_score"] for result in results],
+            "Neutral": [result["neutral_score"] for result in results],
+            "Compound": [result["compound_score"] for result in results],
+        }
+    )
+
+
+def history_table(items):
+    """The table for one page of saved history."""
+    return pd.DataFrame(
+        {
+            "Date": [format_time(item["created_at"]) for item in items],
+            "Text": [shorten(item["original_text"]) for item in items],
+            "Emotion": [emotion_text(item) for item in items],
+            "Sentiment": [item["sentiment"] for item in items],
+            "Compound": [item["compound_score"] for item in items],
+        }
+    )
+
+
 def render_result(result, key_prefix="single"):
     """Show the sentiment report for one analyzed text."""
     st.subheader("Sentiment report")
@@ -214,6 +294,23 @@ def render_result(result, key_prefix="single"):
         "-0.05 or lower as negative. The positive, neutral, and negative scores "
         "show the share of the text in each category and add up to about 1."
     )
+
+    st.markdown("#### Detected emotion")
+    st.caption(
+        "The emotion comes from a separate model and is different from the sentiment "
+        "above. It works best on English text."
+    )
+    emotion_columns = st.columns(3)
+    emotion_columns[0].metric("Emotion", emotion_text(result))
+    emotion_columns[1].metric(
+        "Model confidence",
+        confidence_text(result),
+        help="How strongly the model favors this emotion. It is not a guarantee that the emotion is correct.",
+    )
+    st.write(emotion_explanation(result))
+    scores = top_emotions_text(result)
+    if scores:
+        st.caption(scores)
 
     left, right = st.columns(2)
     left.text_area(
@@ -252,18 +349,7 @@ def render_results_table(results, key_prefix):
     columns[2].metric("Negative entries", counts["Negative"])
     columns[3].metric("Average compound", f"{average:.3f}")
 
-    table = pd.DataFrame(
-        {
-            "#": range(1, len(results) + 1),
-            "Text": [result["original_text"] for result in results],
-            "Sentiment": [result["sentiment"] for result in results],
-            "Positive": [result["positive_score"] for result in results],
-            "Negative": [result["negative_score"] for result in results],
-            "Neutral": [result["neutral_score"] for result in results],
-            "Compound": [result["compound_score"] for result in results],
-        }
-    )
-    st.dataframe(table, hide_index=True)
+    st.dataframe(results_table(results), hide_index=True)
     st.caption(
         "The average compound score is a rough overview only. "
         "Each entry is scored separately."
@@ -463,15 +549,7 @@ def render_history_section():
         st.session_state["history_page"] = 0
         st.rerun()
 
-    table = pd.DataFrame(
-        {
-            "Date": [format_time(item["created_at"]) for item in items],
-            "Text": [shorten(item["original_text"]) for item in items],
-            "Sentiment": [item["sentiment"] for item in items],
-            "Compound": [item["compound_score"] for item in items],
-        }
-    )
-    st.dataframe(table, hide_index=True)
+    st.dataframe(history_table(items), hide_index=True)
 
     last_page = (total - 1) // HISTORY_PAGE_SIZE
     previous_column, label_column, next_column = st.columns([1, 2, 1])
