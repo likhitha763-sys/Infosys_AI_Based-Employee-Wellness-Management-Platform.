@@ -18,3 +18,16 @@ Thumbs.db
 # Local database files
 *.db
 *.sqlite3
+
+# Additional Python files
+*.pyo
+*.pyd
+
+# Other environment files
+.env.*
+!.env.example
+
+# Build files
+dist/
+build/
+node_modules/
