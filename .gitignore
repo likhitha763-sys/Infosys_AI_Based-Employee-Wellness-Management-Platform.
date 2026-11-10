@@ -31,3 +31,8 @@ Thumbs.db
 dist/
 build/
 node_modules/
+
+
+# Milestone 2: downloaded datasets and trained model checkpoints
+ml/data/
+ml/models/
