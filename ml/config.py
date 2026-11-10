@@ -55,3 +55,29 @@ def ensure_directories():
     """Create the folders above if they do not exist yet."""
     for folder in (RAW_DIR, PROCESSED_DIR, MODELS_DIR, RESULTS_DIR):
         folder.mkdir(parents=True, exist_ok=True)
+        
+        
+
+# The 28 GoEmotions labels, in the dataset's own order (index 0 to 27).
+# Taken from the dataset card on Hugging Face and checked against the data in Step 3.
+GOEMOTIONS_LABELS = (
+    "admiration", "amusement", "anger", "annoyance", "approval", "caring",
+    "confusion", "curiosity", "desire", "disappointment", "disapproval",
+    "disgust", "embarrassment", "excitement", "fear", "gratitude", "grief",
+    "joy", "love", "nervousness", "optimism", "pride", "realization",
+    "relief", "remorse", "sadness", "surprise", "neutral",
+)
+
+# The GoEmotions authors' grouping of the 27 emotions into Ekman's six basic
+# emotions. "neutral" is not part of any group and stays its own class.
+EKMAN_MAPPING = {
+    "anger": ("anger", "annoyance", "disapproval"),
+    "disgust": ("disgust",),
+    "fear": ("fear", "nervousness"),
+    "joy": (
+        "admiration", "amusement", "approval", "caring", "desire", "excitement",
+        "gratitude", "joy", "love", "optimism", "pride", "relief",
+    ),
+    "sadness": ("disappointment", "embarrassment", "grief", "remorse", "sadness"),
+    "surprise": ("confusion", "curiosity", "realization", "surprise"),
+}
