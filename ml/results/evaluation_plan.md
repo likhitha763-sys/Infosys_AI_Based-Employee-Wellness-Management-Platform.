@@ -105,3 +105,20 @@ mappings are documented before evaluation.
 ## Changes after commit
 
 None yet.
+
+## ISEAR held-out evaluation (rules fixed before any model is scored on ISEAR)
+
+**Source.** Hugging Face community mirror `TahaRasouli/ISEAR`, file `isear-train.csv` only. This is a subset of the full ISEAR (about 7.6k sentences), not the complete dataset.
+
+**Cleaning.** 5,239 rows remain after removing 53 "[ No response.]" rows, 28 rows with conflicting duplicate texts and 35 duplicate texts. No ISEAR text overlaps with GoEmotions train or SemEval train.
+
+**Held-out rule.** ISEAR is never used for training, hyperparameter tuning, threshold selection or early stopping. It is scored once per final model.
+
+**Label mapping.**
+- joy, fear, anger, sadness and disgust map to the same-named label. This gives 3,752 rows in the main evaluation.
+- shame and guilt have no matching GoEmotions label. They are kept in the file (1,487 rows) but are excluded from the main score and reported separately.
+- A model without a disgust label (the 6-class model: joy, sadness, love, anger, fear, surprise) is scored only on joy, fear, anger and sadness rows (3,003 rows).
+
+**Scoring.** Accuracy and macro F1 on the mapped rows, plus a per-class table. If a model predicts a label that ISEAR does not contain (for example love or surprise), that prediction counts as wrong.
+
+**Known limits.** ISEAR is long first-person reports written by students in the 1990s, a very different domain from Reddit comments. Lower scores than on GoEmotions are expected, and they will be reported as they are.
