@@ -1,0 +1,81 @@
+{
+  "splits": {
+    "train": {
+      "file": "2018-Valence-oc-En-train.txt",
+      "raw_rows": 1181,
+      "duplicate_ids_dropped": 0,
+      "empty_text_dropped": 0,
+      "valence_counts": {
+        "-3": 129,
+        "-2": 249,
+        "-1": 78,
+        "0": 341,
+        "1": 167,
+        "2": 92,
+        "3": 125
+      },
+      "neutral_excluded": 341,
+      "conflicting_duplicate_rows_dropped": 0,
+      "duplicate_text_rows_dropped": 0,
+      "final_rows": 840,
+      "final_label_counts": {
+        "negative": 456,
+        "positive": 384
+      }
+    },
+    "validation": {
+      "file": "2018-Valence-oc-En-dev.txt",
+      "raw_rows": 449,
+      "duplicate_ids_dropped": 0,
+      "empty_text_dropped": 0,
+      "valence_counts": {
+        "-3": 69,
+        "-2": 95,
+        "-1": 34,
+        "0": 105,
+        "1": 58,
+        "2": 35,
+        "3": 53
+      },
+      "neutral_excluded": 105,
+      "conflicting_duplicate_rows_dropped": 0,
+      "duplicate_text_rows_dropped": 0,
+      "overlap_with_earlier_splits_dropped": 0,
+      "final_rows": 344,
+      "final_label_counts": {
+        "negative": 198,
+        "positive": 146
+      }
+    },
+    "test": {
+      "file": "2018-Valence-oc-En-test-gold.txt",
+      "raw_rows": 937,
+      "duplicate_ids_dropped": 0,
+      "empty_text_dropped": 0,
+      "valence_counts": {
+        "-3": 93,
+        "-2": 167,
+        "-1": 80,
+        "0": 262,
+        "1": 107,
+        "2": 91,
+        "3": 137
+      },
+      "neutral_excluded": 262,
+      "conflicting_duplicate_rows_dropped": 0,
+      "duplicate_text_rows_dropped": 0,
+      "overlap_with_earlier_splits_dropped": 0,
+      "final_rows": 675,
+      "final_label_counts": {
+        "negative": 340,
+        "positive": 335
+      }
+    }
+  },
+  "rule": "valence<0 -> negative(0); valence>0 -> positive(1); valence==0 excluded",
+  "label_to_id": {
+    "negative": 0,
+    "positive": 1
+  },
+  "text_cleaning": "html.unescape + whitespace collapse; mentions/hashtags/emojis kept"
+}
