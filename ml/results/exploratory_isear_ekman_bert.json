@@ -1,0 +1,10 @@
+{
+  "model": "bert",
+  "note": "Exploratory view added after the primary ISEAR results were known.",
+  "n": 3752,
+  "accuracy": 0.3947228144989339,
+  "macro_f1_5_classes": 0.4988139570168079,
+  "share_predicted_neutral": 0.34914712153518124,
+  "share_predicted_surprise_group": 0.0943496801705757,
+  "unmapped_predictions": 0
+}
