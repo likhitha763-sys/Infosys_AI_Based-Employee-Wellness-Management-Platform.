@@ -46,14 +46,32 @@ def load_texts(path: Path):
     return set(df["text"].astype(str).str.lower().map(clean_text))
 
 
+RECORD_START = re.compile(
+    r"^(joy|fear|anger|sadness|disgust|shame|guilt),", re.MULTILINE | re.IGNORECASE
+)
+
+
+def read_isear(path: Path) -> pd.DataFrame:
+    """Parse 'emotion,text' records. Texts may contain commas, quotes or line breaks."""
+    raw = path.read_text(encoding="utf-8-sig")
+    matches = list(RECORD_START.finditer(raw))
+    if not matches:
+        raise ValueError(f"No ISEAR records found in {path.name}")
+    rows = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(raw)
+        text = raw[m.end():end].strip()
+        if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+            text = text[1:-1].replace('""', '"')
+        rows.append((m.group(1).lower(), text))
+    return pd.DataFrame(rows, columns=["emotion", "text"])
+
+
 def main() -> None:
     if not RAW_FILE.exists():
         raise FileNotFoundError(f"Missing raw file: {RAW_FILE}")
 
-    df = pd.read_csv(
-        RAW_FILE, header=None, names=["emotion", "text"],
-        dtype=str, keep_default_na=False, encoding="utf-8-sig",
-    )
+    df = read_isear(RAW_FILE)
     report = {"source_file": RAW_FILE.name, "raw_rows": int(len(df))}
 
     df["emotion"] = df["emotion"].str.strip().str.lower()

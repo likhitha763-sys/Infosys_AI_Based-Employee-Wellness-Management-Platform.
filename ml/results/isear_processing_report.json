@@ -1,0 +1,37 @@
+{
+  "source_file": "isear-train.csv",
+  "raw_rows": 5355,
+  "no_response_dropped": 53,
+  "empty_text_dropped": 0,
+  "conflicting_duplicate_rows_dropped": 28,
+  "duplicate_text_rows_dropped": 35,
+  "leakage_removed": {
+    "goemotions_train": 0,
+    "semeval_train": 0
+  },
+  "final_rows": 5239,
+  "final_emotion_counts": {
+    "joy": 768,
+    "guilt": 751,
+    "disgust": 749,
+    "anger": 748,
+    "fear": 745,
+    "sadness": 742,
+    "shame": 736
+  },
+  "main_eval_rows": 3752,
+  "unmapped_rows": 1487,
+  "rows_under_3_words_kept": 16,
+  "label_map": {
+    "joy": "joy",
+    "fear": "fear",
+    "anger": "anger",
+    "sadness": "sadness",
+    "disgust": "disgust"
+  },
+  "unmapped_labels": [
+    "shame",
+    "guilt"
+  ],
+  "source_note": "Hugging Face community mirror TahaRasouli/ISEAR; contains only isear-train.csv (a subset of the full ~7.6k ISEAR). Used for held-out evaluation only."
+}
