@@ -139,3 +139,5 @@ A tweet is predicted **positive** if the highest probability among the positive 
 **Metrics.** Accuracy, macro F1, and per-class precision and recall, for each transformer model and for VADER.
 
 **Known limits.** SemEval is tweets, GoEmotions is Reddit comments. Neutral tweets are excluded, so these scores say nothing about how well a model handles neutral text.
+
+**ISEAR prediction rule.** For each ISEAR text the model's single predicted label is the one with the highest probability among all 28 GoEmotions labels (no threshold). Predictions are compared with the mapped ISEAR label. A prediction such as neutral, love or surprise counts as wrong. Macro F1 is averaged over the five mapped classes (joy, fear, anger, sadness, disgust). For shame and guilt rows, only the distribution of predicted labels is reported. Texts are truncated at 64 tokens, the same as in training.
