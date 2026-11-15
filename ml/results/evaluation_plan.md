@@ -122,3 +122,20 @@ None yet.
 **Scoring.** Accuracy and macro F1 on the mapped rows, plus a per-class table. If a model predicts a label that ISEAR does not contain (for example love or surprise), that prediction counts as wrong.
 
 **Known limits.** ISEAR is long first-person reports written by students in the 1990s, a very different domain from Reddit comments. Lower scores than on GoEmotions are expected, and they will be reported as they are.
+
+## SemEval polarity evaluation (rules fixed before any model is scored on SemEval)
+
+**Data.** SemEval-2018 Task 1 V-oc, English, binary subset (neutral class 0 excluded): `ml/data/processed/semeval2018_voc_binary/`. The test file (675 tweets) is the scored set. SemEval data is never used to train or tune the emotion models.
+
+**Emotion-to-polarity rule.** The model's 28 label probabilities are grouped following the positive/negative grouping used in the GoEmotions paper:
+- Positive: admiration, amusement, approval, caring, desire, excitement, gratitude, joy, love, optimism, pride, relief.
+- Negative: anger, annoyance, disappointment, disapproval, disgust, embarrassment, fear, grief, nervousness, remorse, sadness.
+- Not used for polarity: confusion, curiosity, realization, surprise, neutral.
+
+A tweet is predicted **positive** if the highest probability among the positive labels is greater than the highest probability among the negative labels. Otherwise (including ties) it is predicted **negative**. No threshold is used and nothing is tuned on SemEval.
+
+**Baseline.** VADER on the same tweets: positive if the compound score is 0.05 or higher, otherwise negative.
+
+**Metrics.** Accuracy, macro F1, and per-class precision and recall, for each transformer model and for VADER.
+
+**Known limits.** SemEval is tweets, GoEmotions is Reddit comments. Neutral tweets are excluded, so these scores say nothing about how well a model handles neutral text.
