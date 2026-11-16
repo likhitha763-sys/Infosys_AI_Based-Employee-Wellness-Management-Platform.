@@ -19,6 +19,16 @@ MAX_FILE_SIZE_MB = 2
 HISTORY_PAGE_SIZE = 10
 FINETUNED_THRESHOLD = 0.70  # decision threshold chosen on the validation set (Milestone 2)
 
+SAFETY_MESSAGE = (
+    "**This text may describe thoughts of harming yourself.** MoodMentor is a "
+    "text-analysis tool, not a counsellor, and it cannot help in a crisis. "
+    "If you are in immediate danger, call your local emergency number now "
+    "(112 in India). You can also talk to someone free of charge at any hour: "
+    "in India, call Tele-MANAS on **14416** (or 1-800-891-4416). If you are "
+    "somewhere else, please contact your local crisis line. Telling someone you "
+    "trust how you feel can help too. You do not have to go through this alone."
+)
+
 # Column names that usually hold the text in a CSV file.
 TEXT_COLUMN_HINTS = {
     "text", "entry", "message", "content", "journal", "comment",
@@ -337,6 +347,8 @@ def history_table(items):
 
 def render_result(result, key_prefix="single"):
     """Show the sentiment report for one analyzed text."""
+    if result.get("safety_alert"):
+        st.error(SAFETY_MESSAGE)
     st.subheader("Sentiment report")
 
     columns = st.columns(5)
@@ -410,6 +422,8 @@ def render_results_table(results, key_prefix):
     columns[2].metric("Negative entries", counts["Negative"])
     columns[3].metric("Average compound", f"{average:.3f}")
 
+    if any(result.get("safety_alert") for result in results):
+        st.error(SAFETY_MESSAGE)
     st.dataframe(results_table(results), hide_index=True)
     st.caption(
         "The average compound score is a rough overview only. "

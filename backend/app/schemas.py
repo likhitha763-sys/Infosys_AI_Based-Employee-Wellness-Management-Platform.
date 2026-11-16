@@ -80,6 +80,7 @@ class AnalyzeResponse(BaseModel):
     top_emotions: list[EmotionScore] | None = None
     emotion_note: str | None = None
     emotion_engine: str | None = None  # "finetuned" or "pretrained"
+    safety_alert: bool = False  # True when the text may signal an urgent risk
 
 
 class BatchAnalyzeResponse(BaseModel):

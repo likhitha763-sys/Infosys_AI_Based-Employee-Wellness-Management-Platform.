@@ -51,6 +51,7 @@ from .users import (
     create_user,
     get_user_by_id,
 )
+from .safety import check_urgent
 
 # Read settings from backend/.env if the file exists.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -271,6 +272,7 @@ def analyze(
     [result] = attach_emotions([result])
     save_or_fail(db, current_user, [result])
     result["emotion_engine"] = last_engine() if result.get("predicted_emotion") else None
+    result["safety_alert"] = check_urgent(result["original_text"])
     return result
 
 @app.post(
@@ -288,6 +290,7 @@ def analyze_multiple(
     engine = last_engine()
     for item in results:
         item["emotion_engine"] = engine if item.get("predicted_emotion") else None
+        item["safety_alert"] = check_urgent(item["original_text"])
     return {"count": len(results), "results": results}
 
 @app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
