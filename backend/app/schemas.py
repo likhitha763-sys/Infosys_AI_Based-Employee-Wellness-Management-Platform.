@@ -79,6 +79,7 @@ class AnalyzeResponse(BaseModel):
     emotion_confidence: float | None = Field(None, ge=0, le=1)
     top_emotions: list[EmotionScore] | None = None
     emotion_note: str | None = None
+    emotion_engine: str | None = None  # "finetuned" or "pretrained"
 
 
 class BatchAnalyzeResponse(BaseModel):

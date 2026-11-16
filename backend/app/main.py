@@ -43,7 +43,7 @@ from .security import (
     create_access_token,
     decode_access_token,
 )
-from .emotion import attach_emotions, warm_up
+from .emotion import attach_emotions, last_engine,  warm_up
 from .sentiment import EmptyTextError, NLPResourceError, analyze_batch, analyze_text
 from .users import (
     EmailAlreadyRegisteredError,
@@ -270,8 +270,8 @@ def analyze(
     result = run_analysis(analyze_text, request.text)
     [result] = attach_emotions([result])
     save_or_fail(db, current_user, [result])
+    result["emotion_engine"] = last_engine() if result.get("predicted_emotion") else None
     return result
-
 
 @app.post(
     "/api/analyze/batch", response_model=BatchAnalyzeResponse, tags=["Sentiment"]
@@ -282,11 +282,12 @@ def analyze_multiple(
     db: Session = Depends(get_db),
 ):
     """Analyze several texts and save every result to the user's history."""
-    results = run_analysis(analyze_batch, request.texts)
     results = attach_emotions(results)
     save_or_fail(db, current_user, results)
+    engine = last_engine()
+    for item in results:
+        item["emotion_engine"] = engine if item.get("predicted_emotion") else None
     return {"count": len(results), "results": results}
-
 
 @app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
 def history(
