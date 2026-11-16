@@ -101,7 +101,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -303,6 +303,27 @@ def analyze_multiple(
         item["safety_alert"] = check_urgent(item["original_text"])
     return {"count": len(results), "results": results}
 
+@app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
+def history(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the logged-in user's saved analyses, newest first."""
+    try:
+        return {
+            "total": count_analyses(db, current_user.id),
+            "items": list_analyses(db, current_user.id, limit, offset),
+        }
+    except Exception:
+        logger.exception("Could not read analysis history")
+        raise HTTPException(
+            status_code=500,
+            detail="Your history could not be loaded. Please try again.",
+        )
+        
+        
 @app.get("/api/history/export", response_model=HistoryResponse, tags=["Privacy"])
 def export_history(
     current_user: User = Depends(get_current_user),
