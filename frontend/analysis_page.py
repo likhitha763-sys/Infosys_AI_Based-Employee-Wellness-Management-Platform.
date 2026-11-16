@@ -17,6 +17,7 @@ import views
 MAX_TEXT_LENGTH = 10_000  # characters per entry (must match the backend)
 MAX_FILE_SIZE_MB = 2
 HISTORY_PAGE_SIZE = 10
+FINETUNED_THRESHOLD = 0.70  # decision threshold chosen on the validation set (Milestone 2)
 
 # Column names that usually hold the text in a CSV file.
 TEXT_COLUMN_HINTS = {
@@ -243,6 +244,65 @@ def top_emotions_text(result):
         return None
     scores = ", ".join(f"{item['emotion']} {item['score']:.2f}" for item in top)
     return f"Top model scores: {scores}"
+def engine_text(result):
+    """Which emotion engine produced this result, in words (None if unknown)."""
+    engine = result.get("emotion_engine")
+    if engine == "finetuned":
+        return "Engine: fine-tuned BERT (MoodMentor, trained on GoEmotions)"
+    if engine == "pretrained":
+        return "Engine: pretrained RoBERTa (GoEmotions)"
+    return None
+
+
+def detected_emotions(result):
+    """The top emotions that reach the fine-tuned model's threshold."""
+    top = result.get("top_emotions") or []
+    return [item for item in top if item["score"] >= FINETUNED_THRESHOLD]
+
+
+def render_comparison(result):
+    """Show the VADER baseline and the emotion model side by side for one text."""
+    top = result.get("top_emotions")
+    if not top:
+        return
+
+    st.markdown("#### Baseline vs transformer")
+    left, right = st.columns(2)
+
+    with left:
+        st.markdown("**Baseline: VADER**")
+        st.write(
+            f"One label for the whole text: **{result['sentiment']}** "
+            f"(compound {result['compound_score']:+.2f})."
+        )
+        st.caption("VADER counts positive and negative words. It cannot name individual emotions.")
+
+    with right:
+        st.markdown("**Transformer: emotion model**")
+        engine = engine_text(result)
+        if engine:
+            st.caption(engine)
+        if result.get("emotion_engine") == "finetuned":
+            found = detected_emotions(result)
+            if found:
+                names = ", ".join(item["emotion"].replace("_", " ") for item in found)
+                st.write(f"Emotions found: **{names}**")
+            else:
+                st.write(
+                    f"No emotion reached the {FINETUNED_THRESHOLD:.0%} confidence threshold, "
+                    "so the model is unsure. Its closest guesses are below."
+                )
+        else:
+            st.write(f"Best guess: **{emotion_text(result)}**")
+        for item in top:
+            label = item["emotion"].replace("_", " ")
+            score = min(max(float(item["score"]), 0.0), 1.0)
+            st.progress(score, text=f"{label}: {score:.0%}")
+        st.caption("Only the top 3 scores are shown.")
+
+    note = result.get("emotion_note")
+    if note and result.get("predicted_emotion"):
+        st.warning(note)
 
 
 def results_table(results):
@@ -311,6 +371,7 @@ def render_result(result, key_prefix="single"):
     scores = top_emotions_text(result)
     if scores:
         st.caption(scores)
+    render_comparison(result)
 
     left, right = st.columns(2)
     left.text_area(
