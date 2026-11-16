@@ -282,6 +282,7 @@ def analyze_multiple(
     db: Session = Depends(get_db),
 ):
     """Analyze several texts and save every result to the user's history."""
+    results = run_analysis(analyze_batch, request.texts)    
     results = attach_emotions(results)
     save_or_fail(db, current_user, results)
     engine = last_engine()
