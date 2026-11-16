@@ -17,6 +17,7 @@ ANALYZE_URL = f"{API_BASE_URL}/api/analyze"
 BATCH_URL = f"{API_BASE_URL}/api/analyze/batch"
 HISTORY_URL = f"{API_BASE_URL}/api/history"
 DASHBOARD_URL = f"{API_BASE_URL}/api/dashboard"
+EXPORT_URL = f"{API_BASE_URL}/api/history/export"
 
 
 REQUEST_TIMEOUT = 30  # seconds
@@ -107,12 +108,15 @@ def login_user(email, password):
 # ---------------------------------------------------------------------------
 
 
-def analyze_text(token, text):
-    """Analyze one text; the backend saves the result. Returns (result, error)."""
-    return send_request("POST", ANALYZE_URL, token=token, payload={"text": text})
+def analyze_text(token, text, save=True):
+    """Analyze one text. With save=False nothing is stored. Returns (result, error)."""
+    return send_request(
+        "POST", ANALYZE_URL, token=token, payload={"text": text},
+        params={"save": str(save).lower()},
+    )
 
 
-def analyze_batch(token, texts):
+def analyze_batch(token, texts, save=True):
     """Analyze many texts in chunks the backend accepts.
 
     Returns (list_of_results, error_message).
@@ -121,7 +125,8 @@ def analyze_batch(token, texts):
     for start in range(0, len(texts), MAX_BATCH_SIZE):
         chunk = texts[start : start + MAX_BATCH_SIZE]
         data, error = send_request(
-            "POST", BATCH_URL, token=token, payload={"texts": chunk}, timeout=BATCH_TIMEOUT
+            "POST", BATCH_URL, token=token, payload={"texts": chunk},
+            params={"save": str(save).lower()}, timeout=BATCH_TIMEOUT,
         )
         if error:
             return None, error
@@ -141,3 +146,12 @@ def get_dashboard(token, rhythm_limit=50):
     return send_request(
         "GET", DASHBOARD_URL, token=token, params={"rhythm_limit": rhythm_limit}
     )
+    
+def export_history(token):
+    """Fetch every saved analysis of the user. Returns ({total, items}, error)."""
+    return send_request("GET", EXPORT_URL, token=token, timeout=BATCH_TIMEOUT)
+
+
+def delete_history(token):
+    """Delete every saved analysis of the user. Returns ({deleted}, error)."""
+    return send_request("DELETE", HISTORY_URL, token=token)

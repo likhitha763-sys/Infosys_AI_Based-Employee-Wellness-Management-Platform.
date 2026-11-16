@@ -18,7 +18,13 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from .analyses import count_analyses, list_analyses, save_analyses
+from .analyses import (
+    count_analyses,
+    delete_all_analyses,
+    list_all_analyses,
+    list_analyses,
+    save_analyses,
+)
 from .dashboard import build_dashboard
 from .database import create_tables, get_db
 from .models import User
@@ -260,58 +266,76 @@ def save_or_fail(db, user, results):
             ),
         )
 
-
 @app.post("/api/analyze", response_model=AnalyzeResponse, tags=["Sentiment"])
 def analyze(
     request: AnalyzeRequest,
+    save: bool = Query(True, description="Set to false to analyze without saving the result."),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Analyze one text and save the result to the logged-in user's history."""
+    """Analyze one text. The result is saved to the user's history unless save=false."""
     result = run_analysis(analyze_text, request.text)
     [result] = attach_emotions([result])
-    save_or_fail(db, current_user, [result])
+    if save:
+        save_or_fail(db, current_user, [result])
     result["emotion_engine"] = last_engine() if result.get("predicted_emotion") else None
     result["safety_alert"] = check_urgent(result["original_text"])
     return result
+
 
 @app.post(
     "/api/analyze/batch", response_model=BatchAnalyzeResponse, tags=["Sentiment"]
 )
 def analyze_multiple(
     request: BatchAnalyzeRequest,
+    save: bool = Query(True, description="Set to false to analyze without saving the results."),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Analyze several texts and save every result to the user's history."""
-    results = run_analysis(analyze_batch, request.texts)    
+    """Analyze several texts. Results are saved unless save=false."""
+    results = run_analysis(analyze_batch, request.texts)
     results = attach_emotions(results)
-    save_or_fail(db, current_user, results)
+    if save:
+        save_or_fail(db, current_user, results)
     engine = last_engine()
     for item in results:
         item["emotion_engine"] = engine if item.get("predicted_emotion") else None
         item["safety_alert"] = check_urgent(item["original_text"])
     return {"count": len(results), "results": results}
 
-@app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
-def history(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+@app.get("/api/history/export", response_model=HistoryResponse, tags=["Privacy"])
+def export_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return the logged-in user's saved analyses, newest first."""
+    """Return every saved analysis of the logged-in user (a copy of their data)."""
     try:
-        return {
-            "total": count_analyses(db, current_user.id),
-            "items": list_analyses(db, current_user.id, limit, offset),
-        }
+        items = list_all_analyses(db, current_user.id)
+        return {"total": len(items), "items": items}
     except Exception:
-        logger.exception("Could not read analysis history")
+        logger.exception("Could not export analysis history")
         raise HTTPException(
             status_code=500,
-            detail="Your history could not be loaded. Please try again.",
+            detail="Your data could not be exported. Please try again.",
         )
+
+
+@app.delete("/api/history", tags=["Privacy"])
+def delete_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete every saved analysis of the logged-in user."""
+    try:
+        deleted = delete_all_analyses(db, current_user.id)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not delete analysis history")
+        raise HTTPException(
+            status_code=500,
+            detail="Your saved analyses could not be deleted. Please try again.",
+        )
+    return {"deleted": deleted}
         
         
 

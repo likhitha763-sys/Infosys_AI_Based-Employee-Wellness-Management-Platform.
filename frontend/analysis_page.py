@@ -6,6 +6,7 @@ contents are never executed.
 """
 
 import io
+import json
 
 import pandas as pd
 import streamlit as st
@@ -39,6 +40,31 @@ TEXT_COLUMN_HINTS = {
 def get_token():
     """The login token stored for this browser session."""
     return st.session_state.get("token")
+
+def has_consent():
+    """True once the user has ticked the consent box this session."""
+    return bool(st.session_state.get("consent"))
+
+
+def saving_enabled():
+    """True unless the user switched saving off."""
+    return bool(st.session_state.get("save_results", True))
+
+
+def render_consent():
+    """The consent and saving choices shown above the tabs."""
+    st.checkbox(
+        "I understand that MoodMentor is not a diagnosis or clinical assessment, and "
+        "I agree to my text being analysed by the sentiment and emotion models.",
+        key="consent",
+    )
+    st.checkbox(
+        "Save my results to my account history (untick to analyse without saving).",
+        value=True,
+        key="save_results",
+    )
+    if not has_consent():
+        st.info("Please tick the first box to start analysing text.")
 
 
 # ---------------------------------------------------------------------------
@@ -455,19 +481,26 @@ def show_file_results(state_key, signature):
             f"{stored['too_long']} entries were skipped because they are longer "
             f"than {MAX_TEXT_LENGTH:,} characters."
         )
-    st.success(f"{len(stored['results'])} results were saved to your history.")
+    if stored.get("saved", True):
+        st.success(f"{len(stored['results'])} results were saved to your history.")
+    else:
+        st.success(f"{len(stored['results'])} results. Nothing was saved, because saving is switched off.")
     render_results_table(stored["results"], f"{state_key}_{abs(hash(signature))}")
 
 
 def run_file_analysis(state_key, signature, raw_entries):
     """Send the entries of an uploaded file to the backend and store the results."""
+    if not has_consent():
+        st.warning("Please tick the consent box at the top of the page before analysing a file.")
+        return
     entries, blank, too_long = prepare_entries(raw_entries)
     if not entries:
         st.error("No usable text was found in the file.")
         return
 
+    save = saving_enabled()
     with st.spinner(f"Analyzing {len(entries)} entries..."):
-        results, error = api_client.analyze_batch(get_token(), entries)
+        results, error = api_client.analyze_batch(get_token(), entries, save=save)
 
     if error:
         st.error(error)
@@ -478,6 +511,7 @@ def run_file_analysis(state_key, signature, raw_entries):
         "results": results,
         "blank": blank,
         "too_long": too_long,
+        "saved": save,
     }
 
 
@@ -493,19 +527,26 @@ def render_text_section():
     )
 
     if st.button("Analyze Sentiment", type="primary", key="text_button"):
+        if not has_consent():
+            st.warning("Please tick the consent box at the top of the page before analysing text.")
+            return
         error = validate_text(text)
         if error:
             st.warning(error)
             return
 
+        save = saving_enabled()
         with st.spinner("Analyzing..."):
-            result, api_error = api_client.analyze_text(get_token(), text)
+            result, api_error = api_client.analyze_text(get_token(), text, save=save)
 
         if api_error:
             st.error(api_error)
             return
 
-        st.success("Analysis complete. The result was saved to your history.")
+        if save:
+            st.success("Analysis complete. The result was saved to your history.")
+        else:
+            st.success("Analysis complete. Nothing was saved, because saving is switched off.")
         render_result(result, key_prefix=f"single_{abs(hash(result['original_text']))}")
 
 
@@ -654,28 +695,74 @@ def render_history_section():
 # The page
 # ---------------------------------------------------------------------------
 
+def render_privacy_section():
+    """Tab: download or delete the user's saved data."""
+    st.subheader("Your data and privacy")
+    st.write(
+        "When saving is switched on, MoodMentor stores your text, its sentiment scores, "
+        "and the detected emotion with its confidence in your account. The emotion result "
+        "is an estimate, not a diagnosis. You can download or delete your saved analyses here."
+    )
+
+    st.markdown("#### Download my data")
+    if st.button("Prepare my data export", key="export_prepare"):
+        data, error = api_client.export_history(get_token())
+        if error:
+            st.error(error)
+        else:
+            st.session_state["export_json"] = json.dumps(
+                data["items"], indent=2, ensure_ascii=False
+            )
+            st.session_state["export_count"] = data["total"]
+    if st.session_state.get("export_json"):
+        st.download_button(
+            f"Download {st.session_state['export_count']} saved analyses (JSON)",
+            data=st.session_state["export_json"],
+            file_name="moodmentor_my_data.json",
+            mime="application/json",
+            key="export_download",
+        )
+
+    st.markdown("#### Delete my saved analyses")
+    st.caption(
+        "This permanently removes every saved analysis from your account and cannot be "
+        "undone. Your account itself is not deleted."
+    )
+    confirmed = st.checkbox("I understand this cannot be undone.", key="delete_confirm")
+    if st.button("Delete all my saved analyses", key="delete_button", disabled=not confirmed):
+        data, error = api_client.delete_history(get_token())
+        if error:
+            st.error(error)
+        else:
+            for key in ("txt_results", "csv_results", "export_json", "export_count"):
+                st.session_state.pop(key, None)
+            st.session_state["history_page"] = 0
+            st.success(f"Deleted {data['deleted']} saved analyses.")
 
 def render_dashboard():
     """The page shown to logged-in users."""
     user = st.session_state.get("user", {})
     st.title(f"Welcome, {user.get('full_name', '')}")
     st.write(
-        "Analyze some text below. Every result is saved to your account, "
-        "and you can look back at it in the **My history** tab."
+        "Analyze some text below. Results are saved to your account unless you "
+        "switch saving off, and you can look back at them in the **My history** tab."
     )
+    render_consent()
 
-    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab = st.tabs(
-        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history"]
+    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab, privacy_tab = st.tabs(
+        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history", "Privacy & data"]
     )
-    # The tabs appear in the order above, but the code below runs the analysis
-    # tabs first. That way the history and dashboard already include a result
-    # that was analyzed during this same refresh.
+    # The code below runs the analysis tabs and the privacy tab first. That way
+    # the history and dashboard already include a result that was analyzed, or
+    # exclude data that was deleted, during this same refresh.
     with text_tab:
         render_text_section()
     with txt_tab:
         render_txt_section()
     with csv_tab:
         render_csv_section()
+    with privacy_tab:
+        render_privacy_section()
     with history_tab:
         render_history_section()
     with dashboard_tab:
