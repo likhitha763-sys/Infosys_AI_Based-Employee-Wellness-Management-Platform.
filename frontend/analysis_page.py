@@ -13,6 +13,7 @@ import streamlit as st
 
 import api_client
 import dashboard_page
+import model_performance_page
 import views
 
 MAX_TEXT_LENGTH = 10_000  # characters per entry (must match the backend)
@@ -749,8 +750,9 @@ def render_dashboard():
     )
     render_consent()
 
-    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab, privacy_tab = st.tabs(
-        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history", "Privacy & data"]
+    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab, privacy_tab, performance_tab = st.tabs(
+        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history",
+         "Privacy & data", "Model performance"]
     )
     # The code below runs the analysis tabs and the privacy tab first. That way
     # the history and dashboard already include a result that was analyzed, or
@@ -767,3 +769,5 @@ def render_dashboard():
         render_history_section()
     with dashboard_tab:
         dashboard_page.render_mood_dashboard()
+    with performance_tab:
+        model_performance_page.render_model_performance()
