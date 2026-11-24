@@ -1,0 +1,25 @@
+{
+  "revision": "add492243ff905527e67aeb8b80c082af02207c3",
+  "rows": {
+    "train": 43410,
+    "validation": 5426,
+    "test": 5427
+  },
+  "mean_labels_train": 1.177,
+  "mean_labels_validation": 1.176,
+  "mean_labels_test": 1.166,
+  "rare_labels": [
+    "embarrassment",
+    "grief",
+    "nervousness",
+    "pride",
+    "relief"
+  ],
+  "validation_rows_also_in_train": 49,
+  "test_rows_also_in_train": 42,
+  "shared_texts": {
+    "train&validation": 46,
+    "train&test": 37,
+    "validation&test": 11
+  }
+}

@@ -3,7 +3,7 @@
 This module contains no web code. FastAPI (main.py) calls these functions.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .models import Analysis
@@ -51,3 +51,19 @@ def count_analyses(db: Session, user_id):
     """Return how many analyses a user has saved."""
     query = select(func.count()).select_from(Analysis).where(Analysis.user_id == user_id)
     return db.scalar(query)
+
+def list_all_analyses(db: Session, user_id):
+    """Return every saved analysis of a user, newest first (for the data export)."""
+    query = (
+        select(Analysis)
+        .where(Analysis.user_id == user_id)
+        .order_by(Analysis.created_at.desc(), Analysis.id.desc())
+    )
+    return list(db.scalars(query))
+
+
+def delete_all_analyses(db: Session, user_id):
+    """Delete every saved analysis of a user. Returns how many were deleted."""
+    result = db.execute(delete(Analysis).where(Analysis.user_id == user_id))
+    db.commit()
+    return result.rowcount

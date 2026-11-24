@@ -1,0 +1,63 @@
+{
+  "dataset": "GoEmotions",
+  "repo_id": "google-research-datasets/go_emotions",
+  "subset": "simplified",
+  "revision": "add492243ff905527e67aeb8b80c082af02207c3",
+  "license": "Apache 2.0, as stated on the dataset card",
+  "downloaded_utc": "2026-11-10T16:35:10+00:00",
+  "label_names_from_data": [
+    "admiration",
+    "amusement",
+    "anger",
+    "annoyance",
+    "approval",
+    "caring",
+    "confusion",
+    "curiosity",
+    "desire",
+    "disappointment",
+    "disapproval",
+    "disgust",
+    "embarrassment",
+    "excitement",
+    "fear",
+    "gratitude",
+    "grief",
+    "joy",
+    "love",
+    "nervousness",
+    "optimism",
+    "pride",
+    "realization",
+    "relief",
+    "remorse",
+    "sadness",
+    "surprise",
+    "neutral"
+  ],
+  "files": {
+    "train": {
+      "remote_name": "simplified/train-00000-of-00001.parquet",
+      "local_path": "ml/data/raw/goemotions/simplified/train-00000-of-00001.parquet",
+      "bytes": 2767678,
+      "sha256": "b7d74279616ae7c9b8374ab62ea9f9d6504d36a577bb17f745d720dc2b0d4e76"
+    },
+    "validation": {
+      "remote_name": "simplified/validation-00000-of-00001.parquet",
+      "local_path": "ml/data/raw/goemotions/simplified/validation-00000-of-00001.parquet",
+      "bytes": 350063,
+      "sha256": "d46ad5633c4fa41829d22d549743a7bf858d94129536a02af7280c281db5e63a"
+    },
+    "test": {
+      "remote_name": "simplified/test-00000-of-00001.parquet",
+      "local_path": "ml/data/raw/goemotions/simplified/test-00000-of-00001.parquet",
+      "bytes": 346630,
+      "sha256": "fd0953e535ba2569edc6a1daaa1133f8e4b9071691d540c9bab812fda132bc26"
+    }
+  },
+  "rows": {
+    "train": 43410,
+    "validation": 5426,
+    "test": 5427
+  }
+}

@@ -18,7 +18,13 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from .analyses import count_analyses, list_analyses, save_analyses
+from .analyses import (
+    count_analyses,
+    delete_all_analyses,
+    list_all_analyses,
+    list_analyses,
+    save_analyses,
+)
 from .dashboard import build_dashboard
 from .database import create_tables, get_db
 from .models import User
@@ -43,7 +49,7 @@ from .security import (
     create_access_token,
     decode_access_token,
 )
-from .emotion import attach_emotions, warm_up
+from .emotion import attach_emotions, last_engine,  warm_up
 from .sentiment import EmptyTextError, NLPResourceError, analyze_batch, analyze_text
 from .users import (
     EmailAlreadyRegisteredError,
@@ -51,6 +57,7 @@ from .users import (
     create_user,
     get_user_by_id,
 )
+from .safety import check_urgent
 
 # Read settings from backend/.env if the file exists.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -94,7 +101,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -259,17 +266,20 @@ def save_or_fail(db, user, results):
             ),
         )
 
-
 @app.post("/api/analyze", response_model=AnalyzeResponse, tags=["Sentiment"])
 def analyze(
     request: AnalyzeRequest,
+    save: bool = Query(True, description="Set to false to analyze without saving the result."),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Analyze one text and save the result to the logged-in user's history."""
+    """Analyze one text. The result is saved to the user's history unless save=false."""
     result = run_analysis(analyze_text, request.text)
     [result] = attach_emotions([result])
-    save_or_fail(db, current_user, [result])
+    if save:
+        save_or_fail(db, current_user, [result])
+    result["emotion_engine"] = last_engine() if result.get("predicted_emotion") else None
+    result["safety_alert"] = check_urgent(result["original_text"])
     return result
 
 
@@ -278,15 +288,20 @@ def analyze(
 )
 def analyze_multiple(
     request: BatchAnalyzeRequest,
+    save: bool = Query(True, description="Set to false to analyze without saving the results."),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Analyze several texts and save every result to the user's history."""
+    """Analyze several texts. Results are saved unless save=false."""
     results = run_analysis(analyze_batch, request.texts)
     results = attach_emotions(results)
-    save_or_fail(db, current_user, results)
+    if save:
+        save_or_fail(db, current_user, results)
+    engine = last_engine()
+    for item in results:
+        item["emotion_engine"] = engine if item.get("predicted_emotion") else None
+        item["safety_alert"] = check_urgent(item["original_text"])
     return {"count": len(results), "results": results}
-
 
 @app.get("/api/history", response_model=HistoryResponse, tags=["Sentiment"])
 def history(
@@ -307,6 +322,41 @@ def history(
             status_code=500,
             detail="Your history could not be loaded. Please try again.",
         )
+        
+        
+@app.get("/api/history/export", response_model=HistoryResponse, tags=["Privacy"])
+def export_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return every saved analysis of the logged-in user (a copy of their data)."""
+    try:
+        items = list_all_analyses(db, current_user.id)
+        return {"total": len(items), "items": items}
+    except Exception:
+        logger.exception("Could not export analysis history")
+        raise HTTPException(
+            status_code=500,
+            detail="Your data could not be exported. Please try again.",
+        )
+
+
+@app.delete("/api/history", tags=["Privacy"])
+def delete_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete every saved analysis of the logged-in user."""
+    try:
+        deleted = delete_all_analyses(db, current_user.id)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not delete analysis history")
+        raise HTTPException(
+            status_code=500,
+            detail="Your saved analyses could not be deleted. Please try again.",
+        )
+    return {"deleted": deleted}
         
         
 

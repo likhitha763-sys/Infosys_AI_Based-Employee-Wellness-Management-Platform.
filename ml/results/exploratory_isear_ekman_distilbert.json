@@ -1,0 +1,10 @@
+{
+  "model": "distilbert",
+  "note": "Exploratory view added after the primary ISEAR results were known.",
+  "n": 3752,
+  "accuracy": 0.3704690831556503,
+  "macro_f1_5_classes": 0.4833134645792315,
+  "share_predicted_neutral": 0.4048507462686567,
+  "share_predicted_surprise_group": 0.0834221748400853,
+  "unmapped_predictions": 0
+}

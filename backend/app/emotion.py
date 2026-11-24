@@ -124,6 +124,17 @@ def get_model_name():
     """The Hugging Face model to use (can be changed in backend/.env)."""
     return os.getenv("EMOTION_MODEL_NAME", DEFAULT_MODEL_NAME)
 
+def use_finetuned():
+    """True when backend/.env says EMOTION_ENGINE=finetuned (the Milestone 2 BERT)."""
+    return os.getenv("EMOTION_ENGINE", "pretrained").strip().lower() == "finetuned"
+
+
+_engine_state = threading.local()  # remembers which engine scored the current request
+
+
+def last_engine():
+    """'finetuned', 'pretrained', or None: the engine used by the last call on this thread."""
+    return getattr(_engine_state, "name", None)
 
 # ---------------------------------------------------------------------------
 # Display helpers and choosing the primary emotion (no model needed)
@@ -168,6 +179,30 @@ def pick_primary_emotion(probabilities, min_confidence=MIN_CONFIDENCE, top_n=TOP
         ],
     }
 
+SHORT_TEXT_WORDS = 3  # fewer words than this: the reading is uncertain
+NEUTRAL_MARGIN = 0.20  # neutral this close to the top score: the reading is uncertain
+LONG_TEXT_WORDS = 45  # the fine-tuned model reads only about this many words
+
+
+def uncertainty_note(text, result):
+    """A short warning for readings the fine-tuned model is likely to get wrong.
+
+    Returns None when there is nothing to warn about.
+    """
+    if result["predicted_emotion"] == NO_CLEAR_EMOTION:
+        return None
+    words = len(text.split())
+    notes = []
+    top = result["top_emotions"] or []
+    if words < SHORT_TEXT_WORDS:
+        notes.append("This text is very short, so the emotion reading is uncertain.")
+    elif top and top[0]["emotion"] != "neutral":
+        neutral = next((e["score"] for e in top if e["emotion"] == "neutral"), None)
+        if neutral is not None and top[0]["score"] - neutral <= NEUTRAL_MARGIN:
+            notes.append("The model also sees this text as fairly neutral, so treat the emotion as uncertain.")
+    if words > LONG_TEXT_WORDS:
+        notes.append("Long text: the emotion model reads only roughly the first 45 words.")
+    return " ".join(notes) or None
 
 # ---------------------------------------------------------------------------
 # Loading the model (done once, then reused)
@@ -220,6 +255,16 @@ def reset_model_cache():
 
 def _predict_probabilities(texts):
     """Score every text. Returns one {label: probability} dictionary per text."""
+    if use_finetuned():
+        from . import bert_engine
+
+        try:
+            scored = bert_engine.predict(list(texts))
+            _engine_state.name = "finetuned"
+            return [dict(item["scores"]) for item in scored]
+        except bert_engine.EngineUnavailable as exc:
+            logger.warning("Fine-tuned model unavailable, using the pretrained model: %s", exc)
+    _engine_state.name = "pretrained"
     tokenizer, model, labels = _get_model()
     import torch
 
@@ -303,6 +348,8 @@ def attach_emotions(results):
         logger.exception("Unexpected error during emotion detection")
         note = "Emotion detection failed for this request."
 
+    engine = last_engine() if emotions is not None else None
+
     empty = {
         "predicted_emotion": None,
         "emotion_name": None,
@@ -316,9 +363,32 @@ def attach_emotions(results):
             extra = {**empty, "emotion_note": note}
         else:
             extra = {**emotions[index], "emotion_note": None}
+            if engine == "finetuned":  # Milestone 1 behaviour is left unchanged
+                extra["emotion_note"] = uncertainty_note(result["original_text"], emotions[index])
         enriched.append({**result, **extra})
     return enriched
 
+
+def warm_up():
+    """Load the model ahead of the first request. Never raises an error."""
+    if not is_enabled():
+        return
+    if use_finetuned():
+        try:
+            from . import bert_engine
+
+            bert_engine.warm_up()
+            logger.info("Fine-tuned emotion model is ready.")
+            return
+        except Exception as exc:
+            logger.warning("Fine-tuned model could not be loaded; loading the pretrained one: %s", exc)
+    try:
+        _get_model()
+        logger.info("Emotion model is ready.")
+    except EmotionModelError as exc:
+        logger.error("Emotion model could not be loaded: %s", exc)
+    except Exception:
+        logger.exception("Unexpected error while loading the emotion model")
 
 def warm_up():
     """Load the model ahead of the first request. Never raises an error."""

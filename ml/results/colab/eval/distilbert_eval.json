@@ -1,0 +1,87 @@
+{
+  "model": "distilbert",
+  "semeval_polarity": {
+    "accuracy": 0.8340740740740741,
+    "macro_f1": 0.8320000000000001,
+    "per_class": {
+      "negative": {
+        "precision": 0.9384615384615385,
+        "recall": 0.7176470588235294,
+        "f1": 0.8133333333333334,
+        "support": 340
+      },
+      "positive": {
+        "precision": 0.7686746987951807,
+        "recall": 0.9522388059701492,
+        "f1": 0.8506666666666667,
+        "support": 335
+      }
+    },
+    "confusion_matrix_rows_true_cols_pred_[neg,pos]": [
+      [
+        244,
+        96
+      ],
+      [
+        16,
+        319
+      ]
+    ]
+  },
+  "isear_main": {
+    "n": 3752,
+    "accuracy": 0.2939765458422175,
+    "macro_f1_5_classes": 0.42754214781894645,
+    "predicted_outside_5_classes_share": 0.6473880597014925,
+    "per_class": {
+      "joy": {
+        "precision": 0.9679144385026738,
+        "recall": 0.23567708333333334,
+        "f1": 0.37905759162303665,
+        "support": 768
+      },
+      "fear": {
+        "precision": 0.9184397163120568,
+        "recall": 0.3476510067114094,
+        "f1": 0.5043816942551119,
+        "support": 745
+      },
+      "anger": {
+        "precision": 0.8324607329842932,
+        "recall": 0.21256684491978609,
+        "f1": 0.33865814696485624,
+        "support": 748
+      },
+      "sadness": {
+        "precision": 0.6834381551362684,
+        "recall": 0.4393530997304582,
+        "f1": 0.534864643150123,
+        "support": 742
+      },
+      "disgust": {
+        "precision": 0.956989247311828,
+        "recall": 0.2376502002670227,
+        "f1": 0.38074866310160427,
+        "support": 749
+      }
+    }
+  },
+  "isear_shame_guilt_top_predictions": {
+    "shame": {
+      "neutral": 249,
+      "embarrassment": 196,
+      "realization": 77,
+      "disappointment": 47,
+      "disapproval": 25,
+      "sadness": 25
+    },
+    "guilt": {
+      "neutral": 242,
+      "remorse": 153,
+      "sadness": 85,
+      "realization": 64,
+      "disappointment": 55,
+      "disapproval": 35
+    }
+  }
+}
