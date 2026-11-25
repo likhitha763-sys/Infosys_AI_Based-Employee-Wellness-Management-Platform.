@@ -52,19 +52,20 @@ def saving_enabled():
 
 
 def render_consent():
-    """The consent and saving choices shown above the tabs."""
-    st.checkbox(
-        "I understand that MoodMentor is not a diagnosis or clinical assessment, and "
-        "I agree to my text being analysed by the sentiment and emotion models.",
-        key="consent",
-    )
-    st.checkbox(
-        "Save my results to my account history (untick to analyse without saving).",
-        value=True,
-        key="save_results",
-    )
+    """The consent and saving choices, shown at the top of every page."""
+    with st.expander("Consent and saving choices", expanded=not has_consent()):
+        st.checkbox(
+            "I understand that MoodMentor is not a diagnosis or clinical assessment, and "
+            "I agree to my text being analysed by the sentiment and emotion models.",
+            key="consent",
+        )
+        st.checkbox(
+            "Save my results to my account history (untick to analyse without saving).",
+            value=True,
+            key="save_results",
+        )
     if not has_consent():
-        st.info("Please tick the first box to start analysing text.")
+        st.info("Please tick the first box under 'Consent and saving choices' to start analysing text.")
 
 
 # ---------------------------------------------------------------------------
@@ -739,32 +740,88 @@ def render_privacy_section():
             st.session_state["history_page"] = 0
             st.success(f"Deleted {data['deleted']} saved analyses.")
 
-def render_dashboard():
-    """The page shown to logged-in users."""
-    user = st.session_state.get("user", {})
-    st.title(f"Welcome, {user.get('full_name', '')}")
-    st.write(
-        "Analyze some text below. Results are saved to your account unless you "
-        "switch saving off, and you can look back at them in the **My history** tab."
-    )
-    render_consent()
+MENU_PAGES = [
+    "Dashboard",
+    "Wellness Check-in",
+    "Emotion Analytics",
+    "My History",
+    "Privacy & Data",
+]
 
-    dashboard_tab, text_tab, txt_tab, csv_tab, history_tab, privacy_tab, performance_tab = st.tabs(
-        ["Dashboard", "Type text", "Upload TXT", "Upload CSV", "My history",
-         "Privacy & data", "Model performance"]
-    )
-    # The code below runs the analysis tabs and the privacy tab first. That way
-    # the history and dashboard already include a result that was analyzed, or
-    # exclude data that was deleted, during this same refresh.
+
+def render_checkin():
+    """Page: type text or upload a file to analyse."""
+    st.title("Wellness Check-in")
+    st.write("Describe how you feel, or upload entries from a TXT or CSV file.")
+    text_tab, txt_tab, csv_tab = st.tabs(["Type text", "Upload TXT", "Upload CSV"])
     with text_tab:
         render_text_section()
     with txt_tab:
         render_txt_section()
     with csv_tab:
         render_csv_section()
-    with privacy_tab:
-        render_privacy_section()
-    with history_tab:
-        render_history_section()
-    with dashboard_tab:
+
+
+def render_emotion_analytics():
+    """Page: compare the VADER baseline with the emotion model on one text."""
+    st.title("Emotion Analytics")
+    st.write(
+        "Compare the baseline (VADER) with the fine-tuned transformer on one text. "
+        "VADER gives one overall label. The transformer can report several emotions, "
+        "each with a confidence."
+    )
+    text = st.text_area(
+        "Enter a sentence or a short paragraph:",
+        height=150,
+        max_chars=MAX_TEXT_LENGTH,
+        placeholder="For example: I'm excited about the trip but also really nervous.",
+        key="analytics_input",
+    )
+    if st.button("Compare", type="primary", key="analytics_button"):
+        if not has_consent():
+            st.warning("Please tick the consent box at the top of the page first.")
+            return
+        error = validate_text(text)
+        if error:
+            st.warning(error)
+            return
+
+        save = saving_enabled()
+        with st.spinner("Analyzing..."):
+            result, api_error = api_client.analyze_text(get_token(), text, save=save)
+        if api_error:
+            st.error(api_error)
+            return
+
+        if result.get("safety_alert"):
+            st.error(SAFETY_MESSAGE)
+        if result.get("top_emotions"):
+            render_comparison(result)
+        else:
+            st.info(result.get("emotion_note") or "Emotion detection is not available right now.")
+        st.caption(
+            "Saved to your history." if save else "Nothing was saved, because saving is switched off."
+        )
+        st.caption(views.DISCLAIMER)
+
+
+def render_dashboard():
+    """The page shown to logged-in users: a sidebar menu picks the section."""
+    user = st.session_state.get("user", {})
+    choice = st.sidebar.radio("Menu", MENU_PAGES, key="menu_page")
+
+    render_consent()
+
+    if choice == "Dashboard":
+        st.title(f"Welcome, {user.get('full_name', '')}")
         dashboard_page.render_mood_dashboard()
+    elif choice == "Wellness Check-in":
+        render_checkin()
+    elif choice == "Emotion Analytics":
+        render_emotion_analytics()
+    elif choice == "My History":
+        st.title("My History")
+        render_history_section()
+    else:
+        st.title("Privacy & Data")
+        render_privacy_section()
