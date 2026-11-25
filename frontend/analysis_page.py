@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 import api_client
+import model_performance_page
 import dashboard_page
 import views
 
@@ -19,6 +20,15 @@ MAX_TEXT_LENGTH = 10_000  # characters per entry (must match the backend)
 MAX_FILE_SIZE_MB = 2
 HISTORY_PAGE_SIZE = 10
 FINETUNED_THRESHOLD = 0.70  # decision threshold chosen on the validation set (Milestone 2)
+
+MENU_PAGES = [
+    "Dashboard",
+    "Wellness Check-in",
+    "Emotion Analytics",
+    "Model Performance",
+    "My History",
+    "Privacy & Data",
+]
 
 SAFETY_MESSAGE = (
     "**This text may describe thoughts of harming yourself.** MoodMentor is a "
@@ -649,6 +659,7 @@ def change_history_page(step):
 def render_history_section():
     """Tab 4: the user's saved analyses, newest first."""
     st.subheader("Your saved analyses")
+    st.button("Refresh history", key="history_refresh")
 
     page = st.session_state.get("history_page", 0)
     data, error = api_client.get_history(
@@ -822,6 +833,8 @@ def render_dashboard():
     elif choice == "My History":
         st.title("My History")
         render_history_section()
+    elif choice == "Model Performance":
+        model_performance_page.render_model_performance()    
     else:
         st.title("Privacy & Data")
         render_privacy_section()
