@@ -63,6 +63,7 @@ from .users import (
     get_user_by_id,
 )
 from .safety import check_urgent
+from .resources import get_resources
 from .goals import (
     GoalLimitError,
     GoalNotFoundError,
@@ -72,7 +73,6 @@ from .goals import (
     list_goals,
     set_goal_completed,
 )
-from .resources import get_resources
 
 # Read settings from backend/.env if the file exists.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
