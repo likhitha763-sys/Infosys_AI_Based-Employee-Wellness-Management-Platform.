@@ -751,14 +751,6 @@ def render_privacy_section():
             st.session_state["history_page"] = 0
             st.success(f"Deleted {data['deleted']} saved analyses.")
 
-MENU_PAGES = [
-    "Dashboard",
-    "Wellness Check-in",
-    "Emotion Analytics",
-    "My History",
-    "Privacy & Data",
-]
-
 
 def render_checkin():
     """Page: type text or upload a file to analyse."""
