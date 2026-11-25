@@ -41,6 +41,10 @@ from .schemas import (
     ResourcesResponse,
     TokenResponse,
     UserResponse,
+    GoalCreate,
+    GoalResponse,
+    GoalsResponse,
+    GoalUpdate,
 )
 from .security import (
     SecurityConfigError,
@@ -59,6 +63,15 @@ from .users import (
     get_user_by_id,
 )
 from .safety import check_urgent
+from .goals import (
+    GoalLimitError,
+    GoalNotFoundError,
+    create_goal,
+    delete_all_goals,
+    delete_goal,
+    list_goals,
+    set_goal_completed,
+)
 from .resources import get_resources
 
 # Read settings from backend/.env if the file exists.
@@ -103,7 +116,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -386,4 +399,100 @@ def dashboard(
 @app.get("/api/resources", response_model=ResourcesResponse, tags=["Resources"])
 def read_resources(current_user: User = Depends(get_current_user)):
     """Fixed wellness resources and help contacts. Requires a login token."""
-    return get_resources()        
+    return get_resources()     
+
+# ---------------------------------------------------------------------------
+# Wellness goals (login required)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/goals", response_model=GoalsResponse, tags=["Goals"])
+def read_goals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the logged-in user's goals."""
+    try:
+        items = list_goals(db, current_user.id)
+        return {"total": len(items), "items": items}
+    except Exception:
+        logger.exception("Could not read goals")
+        raise HTTPException(
+            status_code=500, detail="Your goals could not be loaded. Please try again."
+        )
+
+
+@app.post("/api/goals", response_model=GoalResponse, status_code=201, tags=["Goals"])
+def add_goal(
+    request: GoalCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add a goal for the logged-in user."""
+    try:
+        return create_goal(db, current_user.id, request.title, request.target_date)
+    except (ValueError, GoalLimitError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        db.rollback()
+        logger.exception("Could not save a goal")
+        raise HTTPException(
+            status_code=500, detail="The goal could not be saved. Please try again."
+        )
+
+
+@app.patch("/api/goals/{goal_id}", response_model=GoalResponse, tags=["Goals"])
+def update_goal(
+    goal_id: int,
+    request: GoalUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark one of the user's goals as done, or reopen it."""
+    try:
+        return set_goal_completed(db, current_user.id, goal_id, request.completed)
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="Goal not found.")
+    except Exception:
+        db.rollback()
+        logger.exception("Could not update a goal")
+        raise HTTPException(
+            status_code=500, detail="The goal could not be updated. Please try again."
+        )
+
+
+@app.delete("/api/goals/{goal_id}", tags=["Goals"])
+def remove_goal(
+    goal_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete one of the user's goals."""
+    try:
+        delete_goal(db, current_user.id, goal_id)
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="Goal not found.")
+    except Exception:
+        db.rollback()
+        logger.exception("Could not delete a goal")
+        raise HTTPException(
+            status_code=500, detail="The goal could not be deleted. Please try again."
+        )
+    return {"deleted": 1}
+
+
+@app.delete("/api/goals", tags=["Goals"])
+def remove_all_goals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete every goal of the logged-in user."""
+    try:
+        deleted = delete_all_goals(db, current_user.id)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not delete goals")
+        raise HTTPException(
+            status_code=500, detail="Your goals could not be deleted. Please try again."
+        )
+    return {"deleted": deleted}   
