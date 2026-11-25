@@ -4,6 +4,9 @@ This file only handles the user interface. Sentiment analysis and saving are
 done by the FastAPI backend. Uploaded files are only read as text; their
 contents are never executed.
 """
+from datetime import date
+
+import goal_helpers
 
 import io
 import json
@@ -26,6 +29,8 @@ MENU_PAGES = [
     "Wellness Check-in",
     "Emotion Analytics",
     "Model Performance",
+    "Wellness Goals",
+    "Wellness Resources",
     "My History",
     "Privacy & Data",
 ]
@@ -807,6 +812,100 @@ def render_emotion_analytics():
         )
         st.caption(views.DISCLAIMER)
 
+def render_goals_section():
+    """Page: set wellness goals, tick them off, and delete them."""
+    st.title("Wellness Goals")
+    st.write("Set small, specific goals for your well-being and tick them off as you go.")
+
+    with st.form("goal_form", clear_on_submit=True):
+        title = st.text_input(
+            "New goal", max_chars=200, placeholder="For example: Walk for 10 minutes every day"
+        )
+        target = st.date_input("Target date (optional)", value=None, min_value=date.today())
+        submitted = st.form_submit_button("Add goal")
+    if submitted:
+        if not title.strip():
+            st.warning("Please type a goal first.")
+        else:
+            _, add_error = api_client.add_goal(get_token(), title.strip(), target)
+            if add_error:
+                st.error(add_error)
+            else:
+                st.success("Goal added.")
+
+    data, error = api_client.get_goals(get_token())
+    if error:
+        st.error(error)
+        return
+    goals = data["items"]
+    if not goals:
+        st.info("You have no goals yet. Add your first one above.")
+        return
+
+    done, total = goal_helpers.progress_counts(goals)
+    st.progress(done / total, text=f"{done} of {total} goals completed")
+
+    for goal in goals:
+        goal_id = goal["id"]
+        columns = st.columns([1, 6, 3, 2])
+        checked = columns[0].checkbox(
+            "Done", value=goal["completed"], key=f"goal_done_{goal_id}",
+            label_visibility="collapsed",
+        )
+        if checked != goal["completed"]:
+            _, update_error = api_client.set_goal_completed(get_token(), goal_id, checked)
+            if update_error:
+                st.error(update_error)
+            else:
+                st.rerun()
+
+        text = goal_helpers.escape_markdown(goal["title"])
+        columns[1].markdown(f"~~{text}~~" if goal["completed"] else text)
+        note = goal_helpers.goal_due_text(goal)
+        if note:
+            columns[2].caption(note)
+
+        if columns[3].button("Delete", key=f"goal_delete_{goal_id}"):
+            _, delete_error = api_client.delete_goal(get_token(), goal_id)
+            if delete_error:
+                st.error(delete_error)
+            else:
+                st.rerun()
+
+    st.markdown("#### Delete all my goals")
+    confirmed = st.checkbox("I understand this cannot be undone.", key="goals_delete_confirm")
+    if st.button("Delete all my goals", key="goals_delete_all", disabled=not confirmed):
+        _, delete_error = api_client.delete_all_goals(get_token())
+        if delete_error:
+            st.error(delete_error)
+        else:
+            st.rerun()
+
+
+def render_resources_section():
+    """Page: self-care guides and help contacts (fixed content from the backend)."""
+    st.title("Wellness Resources")
+    data, error = api_client.get_resources(get_token())
+    if error:
+        st.error(error)
+        return
+
+    st.info(data["disclaimer"])
+
+    categories = list(dict.fromkeys(item["category"] for item in data["items"]))
+    for category in categories:
+        st.subheader(category)
+        for item in data["items"]:
+            if item["category"] != category:
+                continue
+            with st.expander(item["title"]):
+                st.write(item["summary"])
+                for number, step in enumerate(item["steps"], start=1):
+                    st.write(f"{number}. {step}")
+
+    st.subheader("Need to talk to someone now?")
+    for contact in data["help_contacts"]:
+        st.markdown(f"**{contact['name']}**: {contact['contact']}  \n{contact['note']}")
 
 def render_dashboard():
     """The page shown to logged-in users: a sidebar menu picks the section."""
@@ -822,11 +921,15 @@ def render_dashboard():
         render_checkin()
     elif choice == "Emotion Analytics":
         render_emotion_analytics()
+    elif choice == "Model Performance":
+        model_performance_page.render_model_performance()
+    elif choice == "Wellness Goals":
+        render_goals_section()
+    elif choice == "Wellness Resources":
+        render_resources_section()
     elif choice == "My History":
         st.title("My History")
         render_history_section()
-    elif choice == "Model Performance":
-        model_performance_page.render_model_performance()    
     else:
         st.title("Privacy & Data")
         render_privacy_section()
