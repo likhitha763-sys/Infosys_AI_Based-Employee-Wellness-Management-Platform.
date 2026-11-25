@@ -10,8 +10,6 @@ FILES = [
     "ml/config.py",
     "ml/data_prep/__init__.py",
     "ml/data_prep/labels.py",
-    "ml/train_goemotions.py",
-    "ml/score_external.py"
 ]
 DATA_DIRS = [
     "ml/data/processed/goemotions",
