@@ -89,6 +89,30 @@ class BatchAnalyzeResponse(BaseModel):
     count: int
     results: list[AnalyzeResponse]
 
+class HelpContact(BaseModel):
+    """A place to get help."""
+
+    name: str
+    contact: str
+    note: str
+
+
+class ResourceItem(BaseModel):
+    """One self-care guide."""
+
+    id: str
+    category: str
+    title: str
+    summary: str
+    steps: list[str]
+
+
+class ResourcesResponse(BaseModel):
+    """The Wellness Resources page content."""
+
+    disclaimer: str
+    items: list[ResourceItem]
+    help_contacts: list[HelpContact]
 
 class HealthResponse(BaseModel):
     """Response of the health-check endpoint."""
