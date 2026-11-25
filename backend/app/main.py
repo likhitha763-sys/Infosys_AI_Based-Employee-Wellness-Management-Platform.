@@ -63,7 +63,6 @@ from .users import (
     get_user_by_id,
 )
 from .safety import check_urgent
-from .resources import get_resources
 from .goals import (
     GoalLimitError,
     GoalNotFoundError,
@@ -73,6 +72,7 @@ from .goals import (
     list_goals,
     set_goal_completed,
 )
+from .resources import get_resources
 
 # Read settings from backend/.env if the file exists.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -400,6 +400,7 @@ def dashboard(
 def read_resources(current_user: User = Depends(get_current_user)):
     """Fixed wellness resources and help contacts. Requires a login token."""
     return get_resources()     
+
 
 # ---------------------------------------------------------------------------
 # Wellness goals (login required)
