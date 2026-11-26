@@ -63,4 +63,4 @@ Results are reported as measured, and no target was changed.
 7. Privacy & Data: export, then delete.
 
 ## Reproducing
-See `ml/results/evaluation_plan.md`, the data scripts in `ml/data_prep/`, `ml/train_goemotions.py` and `ml/score_external.py`, and the Colab notebook in `ml/notebooks/`. Rebuild the on-screen numbers with `python -m ml.make_frontend_metrics`.
+Run `ml/notebooks/moodmentor_reproduce_colab.ipynb` in Google Colab (T4 GPU) with a bundle built by `python -m ml.make_colab_bundle`. It trains both models with `ml/train_goemotions.py` and scores them with `ml/score_external.py`. The reported numbers come from the original run, kept in `ml/notebooks/archive/`. A reproduction should give close numbers, not identical ones.
