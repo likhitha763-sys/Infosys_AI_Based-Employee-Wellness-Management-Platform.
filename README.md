@@ -412,3 +412,25 @@ For every result, check that the sentiment label matches the compound score:
 
 Planned for later milestones: personalized well-being recommendations, further
 account features, and optional use of a MySQL database.
+
+## Milestone 2: fine-tuned emotion model
+
+MoodMentor now includes a BERT model fine-tuned on GoEmotions (28 emotions, multi-label). The app shows the emotions it finds with a confidence next to the VADER baseline. If the model cannot load, it falls back to the earlier emotion model.
+
+**Results** (cleaned GoEmotions test set, one run per model): macro F1 about 0.51 (28 labels) and 0.62 (Ekman groups) for both BERT and DistilBERT. Planned targets (82% macro F1, 90% SemEval polarity accuracy) were **not reached**. Details, limits and the evaluation rules are in [`docs/MILESTONE2.md`](docs/MILESTONE2.md) and `ml/results/`.
+
+**Run it**
+1. Install the packages: `python -m pip install -r backend/requirements.txt -r frontend/requirements.txt`
+2. Copy `backend/.env.example` to `backend/.env` and set:
+   - `EMOTION_ENGINE=finetuned` to use the fine-tuned model (leave it out to use the earlier model)
+   - `HF_TOKEN=` a Hugging Face **read** token, only if the model repository is private
+3. Start the backend: `python -m uvicorn backend.app.main:app --reload --port 8000`
+4. Start the app: `python -m streamlit run frontend/app.py`
+
+**Pages:** Dashboard, Wellness Check-in, Emotion Analytics (VADER vs transformer), Model Performance (F1, accuracy, confusion matrices from saved results), Wellness Goals, Wellness Resources, My History, Privacy & Data (consent, analyse without saving, export, delete).
+
+**Tests:** run each file from the project root, for example `python -m backend.tests.check_api` or `python -m frontend.tests.check_analysis_page`. Every file should end with `0 failed`.
+
+**Reproducing the training:** see `ml/notebooks/` (a clean Colab notebook and the original working log) and the scripts in `ml/`.
+
+**Important:** MoodMentor is not a medical or psychological tool and does not diagnose anyone. The urgent-text check is a short phrase list and misses many cases.
