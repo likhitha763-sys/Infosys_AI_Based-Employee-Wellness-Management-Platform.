@@ -18,6 +18,8 @@ BATCH_URL = f"{API_BASE_URL}/api/analyze/batch"
 HISTORY_URL = f"{API_BASE_URL}/api/history"
 DASHBOARD_URL = f"{API_BASE_URL}/api/dashboard"
 EXPORT_URL = f"{API_BASE_URL}/api/history/export"
+GOALS_URL = f"{API_BASE_URL}/api/goals"
+RESOURCES_URL = f"{API_BASE_URL}/api/resources"
 
 
 REQUEST_TIMEOUT = 30  # seconds
@@ -26,7 +28,7 @@ MAX_BATCH_SIZE = 500  # entries per request (must match the backend)
 BACKEND_START_COMMAND = "python -m uvicorn backend.app.main:app --reload --port 8000"
 
 # For these status codes the backend sends a message meant for the user.
-MESSAGE_STATUSES = {400, 401, 409, 500, 503}
+MESSAGE_STATUSES = {400, 401, 404, 409, 500, 503}
 
 
 class SessionExpiredError(Exception):
@@ -155,3 +157,35 @@ def export_history(token):
 def delete_history(token):
     """Delete every saved analysis of the user. Returns ({deleted}, error)."""
     return send_request("DELETE", HISTORY_URL, token=token)
+
+def get_goals(token):
+    """Fetch the user's goals. Returns ({total, items}, error)."""
+    return send_request("GET", GOALS_URL, token=token)
+
+
+def add_goal(token, title, target_date=None):
+    """Add a goal. target_date is a datetime.date or None. Returns (goal, error)."""
+    payload = {"title": title, "target_date": target_date.isoformat() if target_date else None}
+    return send_request("POST", GOALS_URL, token=token, payload=payload)
+
+
+def set_goal_completed(token, goal_id, completed):
+    """Mark a goal done or reopen it. Returns (goal, error)."""
+    return send_request(
+        "PATCH", f"{GOALS_URL}/{goal_id}", token=token, payload={"completed": bool(completed)}
+    )
+
+
+def delete_goal(token, goal_id):
+    """Delete one goal. Returns ({deleted}, error)."""
+    return send_request("DELETE", f"{GOALS_URL}/{goal_id}", token=token)
+
+
+def delete_all_goals(token):
+    """Delete every goal of the user. Returns ({deleted}, error)."""
+    return send_request("DELETE", GOALS_URL, token=token)
+
+
+def get_resources(token):
+    """Fetch the wellness resources and help contacts. Returns (data, error)."""
+    return send_request("GET", RESOURCES_URL, token=token)

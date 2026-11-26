@@ -1,6 +1,6 @@
 """Request and response models (schemas) for the MoodMentor API."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
@@ -89,7 +89,84 @@ class BatchAnalyzeResponse(BaseModel):
     count: int
     results: list[AnalyzeResponse]
 
+class HelpContact(BaseModel):
+    """A place to get help."""
 
+    name: str
+    contact: str
+    note: str
+
+
+class ResourceItem(BaseModel):
+    """One self-care guide."""
+
+    id: str
+    category: str
+    title: str
+    summary: str
+    steps: list[str]
+
+
+class ResourcesResponse(BaseModel):
+    """The Wellness Resources page content."""
+
+    disclaimer: str
+    items: list[ResourceItem]
+    help_contacts: list[HelpContact]
+
+class GoalCreate(BaseModel):
+    """Data sent when adding a goal."""
+
+    title: str = Field(..., max_length=200)
+    target_date: date | None = None
+
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_blank(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Goal title must not be empty.")
+        return value
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"title": "Walk for 10 minutes every day", "target_date": "2026-12-31"}]
+        }
+    }
+
+
+class GoalUpdate(BaseModel):
+    """Data sent when marking a goal done or reopening it."""
+
+    completed: bool
+
+class GoalResponse(BaseModel):
+    """One goal as shown to the frontend."""
+
+    id: int
+    title: str
+    target_date: date | None = None
+    completed: bool
+    created_at: datetime
+    completed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("created_at", "completed_at")
+    @classmethod
+    def assume_utc(cls, value):
+        """SQLite returns times without a time zone; they are stored in UTC."""
+        if value is None:
+            return value
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+class GoalsResponse(BaseModel):
+    """All of a user's goals."""
+
+    total: int
+    items: list[GoalResponse]
+    
 class HealthResponse(BaseModel):
     """Response of the health-check endpoint."""
 
