@@ -120,7 +120,7 @@ def render_goemotions(key, entry):
 
     st.markdown("**Per-emotion results**")
     table = per_class_table(full["per_label"]).sort_values("F1", ascending=False)
-    st.dataframe(table, hide_index=True)
+    st.dataframe(table, hide_index=True, height=35 * (len(table) + 1) + 3)
     st.caption("Emotions with very few test examples (such as grief, relief and pride) have unreliable scores.")
 
     confusion = entry.get("goemotions_label_confusion")
@@ -231,6 +231,15 @@ def render_model_performance():
     render_targets(metrics, entry)
     st.caption("Results are reported as measured. No target was changed to fit the numbers.")
 
-    render_goemotions(key, entry)
-    render_semeval(key, entry, metrics.get("vader"))
-    render_isear(key, entry)
+    section = st.radio(
+        "Show results for",
+        ["GoEmotions (28 emotions)", "SemEval-2018 tweets", "ISEAR (held out)"],
+        horizontal=True,
+        key="perf_section",
+    )
+    if section.startswith("GoEmotions"):
+        render_goemotions(key, entry)
+    elif section.startswith("SemEval"):
+        render_semeval(key, entry, metrics.get("vader"))
+    else:
+        render_isear(key, entry)
